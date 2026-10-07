@@ -82,8 +82,8 @@ adressiert eine einzelne LED.
    bereits gesetzte Sektionen – Komposition), **aber** nur mit einer kurzen
    Pause: **~3 ms zwischen den Frames**. Ohne Pause „rollt“/flackert die
    Leiste. Mit 3 ms Abstand ist der volle 54-LED-Farbverlauf stabil.
-3. Für 54 LEDs werden also 5 Frames à 11 Sektionen gesendet; Updates laufen
-   mit ~25–30 FPS.
+3. Für 54 LEDs werden also 5 Frames à 11 Sektionen gesendet; möglich sind bis
+   zu ~30 Updates/s (Standard: 24).
 
 > `openLightsSync` scheiterte, weil es (a) nur den langsamen `0x86`-Pfad mit
 > 20 ms-Sleeps nutzte, (b) `setSyncScreen` mit 1-Byte-Länge + CRC16 statt

@@ -1,6 +1,6 @@
 //! Wire protocol for the ROBOBLOQ SyncLight LED bar (VID 0x1A86 / PID 0xFE07).
 //!
-//! Verified against the official SyncLight 2.22.1 Electron app (`app.asar`) and
+//! Verified against the SyncLight 2.22.1 desktop app (`app.asar`) and
 //! live hardware (firmware 1.9.4, 54 LEDs):
 //!
 //! * Two frame families, both checksummed with `sum(bytes) % 256`:
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn golden_rb_frames() {
-        // Matches the official app's vectors (offset by the id counter).
+        // Matches the app's vectors (offset by the id counter).
         let f = rb_frame(0x0e, ACT_TURN_OFF_LIGHT, &[]);
         assert_eq!(f, vec![0x52, 0x42, 0x06, 0x0e, 0x97, 0x3f]);
     }
