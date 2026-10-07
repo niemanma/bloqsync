@@ -2,15 +2,26 @@
 
 > ## Hinweis / Notice
 >
-> **Der gesamte Code in diesem Repository wurde von KI erzeugt**
-> (Modell: **DeepSeek V4.1**). Es ist **kein** von Hand geschriebenes Projekt.
+> **Dieser Code wurde vollständig von KI erzeugt** – Modell **DeepSeek V4.1
+> Flash**, verwendet über **OpenRouter**. Verbrauch für dieses Projekt:
+> **~504,3K Tokens (Context)**; Kosten über OpenRouter: **1,29 US‑$**. Es ist
+> **kein** von Hand geschriebenes Projekt.
 >
-> Der Autor hat **nicht vor, dieses Projekt zu maintainen** oder anderweitig
-> weiterzuentwickeln. Es wird **as-is** bereitgestellt, ohne Support/Gewähr.
+> Der Autor hat **nicht vor**, dieses Projekt zu maintainen oder
+> weiterzuentwickeln. Bereitstellung **as‑is**, ohne Support oder Gewährleistung.
 >
 > **Lizenz: [Unlicense](LICENSE)** (Public Domain). Jeder darf **absolut alles**
-> damit machen – benutzen, verändern, verkaufen, veröffentlichen, ohne
-> Bedingungen. **Einfach benutzen oder einen Fork daraus machen.**
+> damit machen – benutzen, ändern, verkaufen, veröffentlichen, ohne Bedingungen.
+> **Einfach benutzen oder einen Fork daraus machen.**
+>
+> ### Keine Verbindung zu Robobloq / Marken
+> Dieses Projekt steht in **keinerlei Verbindung** zu Robobloq, Corsair, iCUE
+> oder verbundenen Firmen und wird von **niemandem** davon gesponsert,
+> unterstützt, autorisiert oder geprüft. „ROBOBLOQ“, „SyncLight“ und andere
+> genannte Namen sind Marken ihrer jeweiligen Inhaber und werden hier **nur
+> beschreibend** verwendet (um zu benennen, welches Gerät angesteuert wird).
+> Es wird **kein Anspruch** auf diese Marken erhoben. Das Reverse Engineering
+> erfolgte **für Interoperabilität** mit einem selbst erworbenen Gerät.
 
 Hochperformante Bildschirm-Synchronisation („Ambilight“) für die
 **ROBOBLOQ SyncLight** USB-LED-Leiste unter Linux (GNOME/Wayland).
@@ -22,7 +33,8 @@ Aussetzern.
 
 ## Ergebnis
 
-- **~25–30 FPS** bei vollem **54-LED**-Farbverlauf, flüssig, **ohne Flackern**
+- Flüssiger Sync mit vollem **54-LED**-Farbverlauf (Standard: **24 fps**,
+  Glättung **0.22**; bis ~30 fps möglich)
 - Echtes Per-LED/Per-Zonen-Steuerung über das schnelle `setSyncScreen`-Protokoll
 - Capture über **PipeWire** (xdg-desktop-portal ScreenCast), nicht per Screenshot-Subprozess
 - Geräte-Autoerkennung, Konfigurations-Persistenz, Tauri-GUI
@@ -36,8 +48,8 @@ Gerät: `VID 0x1A86 / PID 0xFE07` (Hersteller „ROBOBLOQ“), **HID Interface 0
 
 - **Unnummerierte 64-Byte-HID-Reports** (Report-Descriptor ohne Report-ID).
 - Live verifiziert: **Firmware 1.9.4, 54 LEDs**, UUID `a1b2c3d4e5f60718`.
-  Die Serial ist bei allen Geräten `0123456789` → zur Identifikation
-  USB-Topologie-Pfad (z. B. `1-2`) + UUID nutzen.
+  Die Serial ist bei allen Geräten identisch (`0123456789`), taugt also nicht
+  zur Unterscheidung – dafür **Geräte-UUID** verwenden (Fallback: USB-Port-Pfad).
 
 ### Rahmen (Framing)
 
@@ -195,17 +207,26 @@ beim **Start** der Leiste angewendet.
   sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
   ```
 
-## Bekannte Grenzen / nächste Schritte
+## Status & Grenzen
 
-- **Mehrere Monitore 1:1 mit mehreren Leisten**: Kern unterstützt mehrere
-  Geräte/Streams; die GUI bedient aktuell eine Leiste. Als Nächstes: mehrere
-  Streams pro Portal-Session auf N Leisten mappen (UI).
-- **Hotplug/Reconnect**: bei Abziehen/Anstecken wird die Engine neu gestartet
-  (manuell). Watchdog geplant.
-- **Delta-Updates**: nur geänderte Sektionen senden → höhere FPS / weniger
-  USB-Last bei wenig Bewegung.
-- **Gamma/Threshold-Kalibrierung**, USB-Hotplug-Erkennung, Autostart.
+- **Nicht gewartet:** einmaliger KI-generierter Snapshot (siehe Hinweis oben).
+  Issues/PRs werden voraussichtlich nicht bearbeitet → bitte **forken**.
+- **Getestet nur auf GNOME/Wayland** (Zorin OS 18.1 / GNOME 46, PipeWire 1.0.5,
+  zwei Monitore + zwei Leisten). Andere Compositoren (KDE, wlroots) ungetestet.
+- **Capture** via xdg-desktop-portal ScreenCast; der Monitor-Dialog erscheint
+  nur beim ersten Mal (Restore-Token).
+- **Reverse-engineertes Protokoll** – kann bei anderer Firmware/Revision
+  abweichen.
+- Multi-Monitor / Multi-Leiste **1:1** ist implementiert und getestet.
+
+## Danksagung
+
+Als Referenz dienten Community-Projekte rund um die SyncLight-Leiste,
+insbesondere `openLightsSync`. Der eigentliche Code dieses Repos ist eigenständig
+und KI-generiert.
 
 ## Lizenz
 
-Noch festzulegen.
+[Unlicense](LICENSE) – **Public Domain**. Jeder darf absolut alles damit machen,
+ohne Bedingungen und ohne Gewährleistung.
+

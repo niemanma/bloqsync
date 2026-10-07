@@ -2,7 +2,9 @@
 name = "bloqsync"
 version = "0.1.0"
 edition = "2021"
-description = "High-performance ambient light sync for ROBOBLOQ SyncLight LED bars"
+description = "High-performance ambient light sync for ROBOBLOQ SyncLight LED bars (unofficial, AI-generated, public domain)"
+license = "Unlicense"
+repository = "https://github.com/littletachibana/bloqsync"
 
 [[bin]]
 name = "bloqsync"
