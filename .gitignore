@@ -1,0 +1,8 @@
+# Rust / Cargo
+/target
+/gui/target
+**/*.rs.bk
+
+# editor / OS
+*~
+.DS_Store

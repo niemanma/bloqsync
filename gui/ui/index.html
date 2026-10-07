@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bloqsync</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>bloqsync</h1>
+    <span id="status-dot" class="dot off"></span>
+    <span id="status-text" class="muted"></span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1 · Aufnahme (ScreenCast)</h2>
+      <div class="row">
+        <button id="open-capture" class="primary">Monitore erfassen</button>
+        <button id="close-capture">Aufnahme stoppen</button>
+      </div>
+      <ul id="streams" class="list"><li class="muted">Noch keine Aufnahme.</li></ul>
+    </section>
+
+    <section class="card">
+      <h2>2 · Globale Einstellungen</h2>
+      <div class="grid">
+        <label>FPS <input type="range" id="fps" min="10" max="60" value="24" /><output id="fps-out">24</output></label>
+        <label>Glättung (0=träge, 1=reaktiv) <input type="range" id="smooth" min="0" max="100" value="22" /><output id="smooth-out">0.22</output></label>
+        <label>Helligkeit <input type="range" id="brightness" min="0" max="255" value="200" /><output id="brightness-out">200</output></label>
+      </div>
+      <div class="grid zones">
+        <label>Links <input type="number" id="z-left" value="18" min="0" max="254" /></label>
+        <label>Oben <input type="number" id="z-top" value="18" min="0" max="254" /></label>
+        <label>Rechts <input type="number" id="z-right" value="18" min="0" max="254" /></label>
+        <label>Unten <input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
+      </div>
+
+      <div class="grid zones">
+        <label>Flacker-Filter
+          <select id="filter">
+            <option value="none">keine</option>
+            <option value="deadband">Deadband (Hysterese)</option>
+            <option value="quantize">Quantisieren</option>
+            <option value="quantize_smooth">Quantisieren + weich</option>
+            <option value="smooth">Weich (Hysterese+Ramp)</option>
+            <option value="median3">Median 3</option>
+            <option value="median5">Median 5</option>
+            <option value="mean4">Mittelwert 4</option>
+            <option value="test">Test (Negativ)</option>
+          </select>
+        </label>
+        <label>Filter-Stärke <input type="range" id="filter-strength" min="1" max="32" value="8" /><output id="filter-strength-out">8</output></label>
+        <label>Reports/Update (0 = volle Details)
+          <input type="number" id="max-frames" min="0" max="8" value="0" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3 · Leisten (1:1 mit Monitor)</h2>
+      <div id="bars" class="bars"><p class="muted">Keine Leiste gefunden.</p></div>
+      <div class="row" style="margin-top:12px">
+        <button id="start-all" class="primary">Alle starten</button>
+        <button id="stop-all">Alle stoppen</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Automatik (Plug &amp; Play)</h2>
+      <label class="check"><input type="checkbox" id="autostart" /> Beim Login starten</label>
+      <label class="check"><input type="checkbox" id="autostart-sync" /> Sync automatisch starten (beim Start &amp; bei neu angesteckten Leisten)</label>
+      <p class="muted">Der Monitor-Dialog erscheint nur beim ersten Mal; danach wird die Auswahl per Restore-Token wiederhergestellt.</p>
+    </section>
+
+    <section class="card">
+      <h2>Statische Farbe (alle aktiven Leisten)</h2>
+      <div class="row">
+        <button class="sw" data-rgb="255,0,0" style="background:#f00"></button>
+        <button class="sw" data-rgb="0,255,0" style="background:#0f0"></button>
+        <button class="sw" data-rgb="0,0,255" style="background:#00f"></button>
+        <button class="sw" data-rgb="255,200,100" style="background:#ffc864"></button>
+        <button class="sw" data-rgb="0,0,0" style="background:#000"></button>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

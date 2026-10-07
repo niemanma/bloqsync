@@ -1,0 +1,19 @@
+[package]
+name = "bloqsync"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance ambient light sync for ROBOBLOQ SyncLight LED bars"
+
+[[bin]]
+name = "bloqsync"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+pipewire = "0.10.1"
+ashpd = { version = "0.13", features = ["screencast"] }
+tokio = "1.53.2"
+futures-util = "0.3.34"

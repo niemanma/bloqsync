@@ -1,0 +1,64 @@
+:root {
+  --bg: #1c1c1e;
+  --card: #26262a;
+  --fg: #e8e8ea;
+  --muted: #9a9aa2;
+  --accent: #4a9eff;
+  --border: #38383e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Cantarell", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+}
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+main { padding: 16px 20px; display: grid; gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.grid.zones { grid-template-columns: repeat(4, 1fr); }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+label.check { flex-direction: row; align-items: center; gap: 8px; margin: 6px 0 12px; }
+input[type="range"] { width: 100%; }
+input[type="number"], select {
+  background: #1a1a1c; color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px; font-size: 14px;
+}
+select { flex: 1; }
+button {
+  background: #3a3a42; color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 14px; font-size: 14px; cursor: pointer;
+}
+button:hover { background: #45454f; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #06203f; font-weight: 600; }
+.muted { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.sw { width: 40px; height: 40px; border-radius: 8px; padding: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot.on { background: #34c759; box-shadow: 0 0 8px #34c759; }
+.dot.off { background: #5a5a62; }
+output { color: var(--fg); font-size: 12px; }
+.list { list-style: none; padding: 0; margin: 10px 0 0; }
+.list li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.bars { display: flex; flex-direction: column; gap: 10px; }
+.bar-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1.3fr auto auto auto auto;
+  gap: 10px;
+  align-items: center;
+  background: #202024;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.bar-name { font-size: 14px; }
+.bar-row select { min-width: 170px; }
+.bar-row .check { margin: 0; }
+
