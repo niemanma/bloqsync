@@ -60,7 +60,7 @@ Gerät: `VID 0x1A86 / PID 0xFE07` (Hersteller „ROBOBLOQ“), **HID Interface 0
 (Vendor, Usage Page `0xFF00`), Interface 1 = Tastatur (Touch-Buttons, ignorieren).
 
 - **Unnummerierte 64-Byte-HID-Reports** (Report-Descriptor ohne Report-ID).
-- Live verifiziert: **Firmware 1.9.4, 54 LEDs**, UUID `a1b2c3d4e5f60718`.
+- Live verifiziert: **Firmware 1.9.4, 54 LEDs**, UUID (Beispiel `a1b2c3d4e5f60718`; pro Gerät verschieden).
   Die Serial ist bei allen Geräten identisch (`0123456789`), taugt also nicht
   zur Unterscheidung – dafür **Geräte-UUID** verwenden (Fallback: USB-Port-Pfad).
 
