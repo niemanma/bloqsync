@@ -22,6 +22,19 @@
 > beschreibend** verwendet (um zu benennen, welches Gerät angesteuert wird).
 > Es wird **kein Anspruch** auf diese Marken erhoben. Das Reverse Engineering
 > erfolgte **für Interoperabilität** mit einem selbst erworbenen Gerät.
+>
+> ### Nur mit genau diesem Modell getestet
+> Getestet wurde **ausschließlich** mit:
+> **ROBOBLOQ SyncLight, 24″-Variante, 54 LEDs** (Firmware **1.9.4**), auf
+> **Zorin OS 18.1 / GNOME 46 / PipeWire 1.0.5**, mit **zwei Monitoren und
+> zwei Leisten**.
+>
+> **Andere Größen, LED-Zahlen und Revisionen sind NICHT getestet.** Das
+> Protokoll sollte zwar skalieren, aber: die Update-Rate **sinkt mit steigender
+> LED-Zahl** (mehr Sektionen → mehr 64-Byte-Frames pro Update), und das
+> **Standard-Zonenlayout der GUI ist auf 54 LEDs ausgelegt** (18/18/18).
+> Nutzung auf eigenes Risiko – es wurden keine Tests mit anderen Modellen
+> durchgeführt.
 
 Hochperformante Bildschirm-Synchronisation („Ambilight“) für die
 **ROBOBLOQ SyncLight** USB-LED-Leiste unter Linux (GNOME/Wayland).
@@ -211,8 +224,10 @@ beim **Start** der Leiste angewendet.
 
 - **Nicht gewartet:** einmaliger KI-generierter Snapshot (siehe Hinweis oben).
   Issues/PRs werden voraussichtlich nicht bearbeitet → bitte **forken**.
-- **Getestet nur auf GNOME/Wayland** (Zorin OS 18.1 / GNOME 46, PipeWire 1.0.5,
-  zwei Monitore + zwei Leisten). Andere Compositoren (KDE, wlroots) ungetestet.
+- **Getestet nur mit einem Modell:** ROBOBLOQ SyncLight, **24″-Variante mit
+  54 LEDs** (Firmware 1.9.4), auf GNOME/Wayland (Zorin OS 18.1 / GNOME 46,
+  PipeWire 1.0.5), zwei Monitore + zwei Leisten. Andere Modelle/LED-Zahlen/
+  Revisionen sind **ungetestet**.
 - **Capture** via xdg-desktop-portal ScreenCast; der Monitor-Dialog erscheint
   nur beim ersten Mal (Restore-Token).
 - **Reverse-engineertes Protokoll** – kann bei anderer Firmware/Revision
