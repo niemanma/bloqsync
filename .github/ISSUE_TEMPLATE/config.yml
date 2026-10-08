@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Frage / Diskussion
+    url: https://github.com/niemanma/bloqsync/discussions
+    about: Fragen, Ideen und allgemeiner Austausch

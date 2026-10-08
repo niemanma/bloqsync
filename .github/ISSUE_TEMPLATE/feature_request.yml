@@ -1,0 +1,11 @@
+name: Feature / Idee
+description: Vorschlag oder Wunsch
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idee
+    validations:
+      required: true

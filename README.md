@@ -1,5 +1,10 @@
 # bloqsync
 
+[![Release](https://img.shields.io/github/v/release/niemanma/bloqsync)](https://github.com/niemanma/bloqsync/releases)
+[![Downloads](https://img.shields.io/github/downloads/niemanma/bloqsync/total)](https://github.com/niemanma/bloqsync/releases)
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20GNOME%2FWayland-informational)](#)
+
 > ## Hinweis / Notice
 >
 > **Dieser Code wurde vollständig von KI erzeugt** – Modell **DeepSeek V4.1
@@ -286,6 +291,16 @@ einen rein **audio-reaktiven** Modus:
 Als Referenz dienten Community-Projekte rund um die SyncLight-Leiste,
 insbesondere `openLightsSync`. Der eigentliche Code dieses Repos ist eigenständig
 und KI-generiert.
+
+## Feedback & Kompatibilität
+
+- **Fragen / Austausch:** GitHub *Discussions*.
+- **Fehler:** *Issues* → „Bug report".
+- **Anderes Modell?** Bitte *Issues* → „Hardware / Kompatibilität" nutzen. Wir
+  haben bisher **nur die 24″-Variante (54 LEDs)** getestet – Rückmeldungen zu
+  anderen Größen/LED-Zahlen sind sehr willkommen.
+- Bitte keine Telemetrie: Das Tool sendet **nichts** nach außen. Reichweite gibt
+  es über Release-Downloads/Stars.
 
 ## Lizenz
 

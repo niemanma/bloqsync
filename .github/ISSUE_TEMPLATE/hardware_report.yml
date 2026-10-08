@@ -1,0 +1,37 @@
+name: Hardware / Kompatibilität
+description: Berichte, ob deine Leiste funktioniert (wir haben nur ein Modell getestet!)
+title: "[Hardware] "
+labels: ["hardware"]
+body:
+  - type: markdown
+    attributes:
+      value: "Hilf uns, andere Modelle abzudecken. Getestet wurde bisher nur die 24\"-Variante (54 LEDs)."
+  - type: input
+    id: model
+    attributes:
+      label: Modell / Größe
+      placeholder: "z. B. ROBOBLOQ SyncLight 27\""
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware & LED-Anzahl
+      description: "Ausgabe von: bloqsync info    (oder in der GUI)"
+      placeholder: "firmware=1.9.4 leds=54"
+    validations:
+      required: true
+  - type: dropdown
+    id: works
+    attributes:
+      label: Funktioniert es?
+      options:
+        - "Ja, alles"
+        - "Teilweise"
+        - "Nein"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anmerkungen
