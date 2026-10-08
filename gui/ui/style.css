@@ -52,7 +52,7 @@ output { color: var(--fg); font-size: 12px; }
 .bars { display: flex; flex-direction: column; gap: 10px; }
 .bar-row {
   display: grid;
-  grid-template-columns: 1.4fr 1.3fr auto auto auto auto;
+  grid-template-columns: 1.4fr 1.3fr auto auto auto auto auto;
   gap: 10px;
   align-items: center;
   background: #202024;
@@ -64,3 +64,14 @@ output { color: var(--fg); font-size: 12px; }
 .bar-row select { min-width: 170px; }
 .bar-row .check { margin: 0; }
 
+
+.monmap { position: relative; margin: 10px 0 14px; }
+.monbox {
+  position: absolute; box-sizing: border-box;
+  border: 1px solid var(--accent); border-radius: 6px;
+  background: rgba(74,158,255,.12);
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  color: var(--fg); overflow: hidden;
+}
+.monnum { font-size: 22px; font-weight: 700; line-height: 1; }
+.monres { font-size: 10px; color: var(--muted); }

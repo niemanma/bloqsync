@@ -30,23 +30,51 @@ const autostart = $("autostart");
 const autostartSync = $("autostart-sync");
 
 function streamLabel(s) {
-  const pos = s.position ? `@ ${s.position[0]},${s.position[1]}` : "";
   const size = s.size ? `${s.size[0]}×${s.size[1]}` : "?";
-  return `Monitor ${s.index}: ${size} ${pos}`;
+  const xs = streams.map((x) => (x.position ? x.position[0] : 0));
+  const ys = streams.map((x) => (x.position ? x.position[1] : 0));
+  const minx = Math.min(...xs), maxx = Math.max(...xs);
+  const miny = Math.min(...ys), maxy = Math.max(...ys);
+  const px = s.position ? s.position[0] : 0;
+  const py = s.position ? s.position[1] : 0;
+  let where = [];
+  if (minx !== maxx) { if (px === minx) where.push("links"); if (px === maxx) where.push("rechts"); }
+  if (miny !== maxy) { if (py === miny) where.push("oben"); if (py === maxy) where.push("unten"); }
+  const pos = s.position ? `(${px}, ${py})` : "";
+  const desc = where.length ? " · " + where.join("/") : "";
+  return `Monitor ${s.index + 1}: ${size} ${pos}${desc}`;
 }
 
 function renderStreams() {
-  const ul = $("streams");
+  const box = $("streams");
   if (streams.length === 0) {
-    ul.innerHTML = '<li class="muted">Noch keine Aufnahme.</li>';
+    box.innerHTML = '<p class="muted">Noch keine Aufnahme.</p>';
     return;
   }
-  ul.innerHTML = "";
-  for (const s of streams) {
-    const li = document.createElement("li");
-    li.textContent = streamLabel(s);
-    ul.appendChild(li);
+  // Schematic layout map from the real monitor positions/sizes.
+  const hasGeo = streams.every((s) => s.position && s.size);
+  let html = "";
+  if (hasGeo) {
+    const xs = streams.map((s) => s.position[0]);
+    const ys = streams.map((s) => s.position[1]);
+    const minx = Math.min(...xs), miny = Math.min(...ys);
+    const maxx = Math.max(...streams.map((s) => s.position[0] + s.size[0]));
+    const maxy = Math.max(...streams.map((s) => s.position[1] + s.size[1]));
+    const bw = maxx - minx || 1, bh = maxy - miny || 1;
+    const scale = Math.min(560 / bw, 220 / bh);
+    html += `<div class="monmap" style="width:${Math.round(bw * scale)}px;height:${Math.round(bh * scale)}px">`;
+    streams.forEach((s, i) => {
+      const x = (s.position[0] - minx) * scale;
+      const y = (s.position[1] - miny) * scale;
+      const w = s.size[0] * scale, h = s.size[1] * scale;
+      html += `<div class="monbox" style="left:${Math.round(x)}px;top:${Math.round(y)}px;width:${Math.round(w)}px;height:${Math.round(h)}px"><span class="monnum">${i + 1}</span><span class="monres">${s.size[0]}×${s.size[1]}</span></div>`;
+    });
+    html += "</div>";
   }
+  html += '<ul class="list">';
+  for (const s of streams) html += `<li>${streamLabel(s)}</li>`;
+  html += "</ul>";
+  box.innerHTML = html;
   renderBars();
 }
 
@@ -70,6 +98,7 @@ function renderBars() {
       <select class="bar-stream"></select>
       <label class="check"><input type="checkbox" class="bar-rev" ${st.reverse ? "checked" : ""}/> gespiegelt</label>
       <span class="bar-status muted">—</span>
+      <button class="bar-identify">Ident.</button>
       <button class="bar-start primary">Start</button>
       <button class="bar-stop" disabled>Stop</button>
     `;
@@ -130,6 +159,9 @@ function renderBars() {
     stopBtn.addEventListener("click", async () => {
       await invoke("stop_bar", { barPath: (d.uuid || d.id) });
       row._setRunning(false);
+    });
+    row.querySelector(".bar-identify").addEventListener("click", () => {
+      invoke("identify_bar", { barPath: (d.uuid || d.id) }).catch(() => {});
     });
     box.appendChild(row);
   }

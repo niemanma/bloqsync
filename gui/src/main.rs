@@ -42,6 +42,11 @@ struct BarRuntime {
     sync: SyncHandle,
 }
 
+struct IdentifyRuntime {
+    running: Arc<std::sync::atomic::AtomicBool>,
+    thread: std::thread::JoinHandle<()>,
+}
+
 struct CinemaRuntime {
     audio: AudioHandle,
     running: Arc<std::sync::atomic::AtomicBool>,
@@ -77,6 +82,7 @@ struct AppState {
     /// True while the user shows a static colour / cinema (screen sync paused).
     sync_paused: Mutex<bool>,
     cinema: Mutex<Option<CinemaRuntime>>,
+    identify: Mutex<Option<IdentifyRuntime>>,
 }
 
 #[derive(serde::Serialize)]
@@ -511,6 +517,62 @@ fn cinema_start_inner(
     Ok(())
 }
 
+// ── Identify / numbering ────────────────────────────────────────────
+
+/// Light ONLY the given bar (blinking) and turn the others off, then restore.
+#[tauri::command]
+fn identify_bar(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    bar_path: String,
+) -> Result<(), String> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    if let Some(prev) = state.identify.lock().unwrap().take() {
+        prev.running.store(false, Ordering::Relaxed);
+        let _ = prev.thread.join();
+    }
+    let was_running = !state.bars.lock().unwrap().is_empty();
+    *state.sync_paused.lock().unwrap() = true;
+    stop_all_inner(&state);
+
+    let mut devices: Vec<(String, String, Arc<Device>)> = Vec::new();
+    for info in enumerate() {
+        if let Ok(d) = Device::open(&info) {
+            devices.push((d.info.id.clone(), d.uuid.clone(), Arc::new(d)));
+        }
+    }
+    if devices.is_empty() {
+        return Err("keine Leiste gefunden".into());
+    }
+    log(&format!("identify: {bar_path}"));
+    let running = Arc::new(AtomicBool::new(true));
+    let running_t = running.clone();
+    let handle = app.clone();
+    let thread = std::thread::spawn(move || {
+        let start = Instant::now();
+        let mut on = true;
+        while running_t.load(Ordering::Relaxed) && start.elapsed() < Duration::from_secs(8) {
+            for (id, uuid, d) in &devices {
+                let is_target = *id == bar_path || *uuid == bar_path;
+                let c = if is_target && on { [255, 255, 255] } else { [0, 0, 0] };
+                let _ = d.set_persistent_color(c);
+            }
+            on = !on;
+            std::thread::sleep(Duration::from_millis(450));
+        }
+        for (_, _, d) in &devices {
+            let _ = d.set_persistent_color([0, 0, 0]);
+        }
+        let st = handle.state::<AppState>();
+        if was_running {
+            *st.sync_paused.lock().unwrap() = false;
+            let _ = autostart_run_inner(&st);
+        }
+    });
+    *state.identify.lock().unwrap() = Some(IdentifyRuntime { running, thread });
+    Ok(())
+}
+
 // ── Config ──────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
@@ -854,6 +916,7 @@ fn main() {
             resume_sync,
             cinema_start,
             cinema_stop,
+            identify_bar,
             get_config,
             save_config,
             autostart_enabled,
