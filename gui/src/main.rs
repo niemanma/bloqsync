@@ -10,15 +10,49 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
 
+mod monitors;
+
+/// Append a line to ~/.cache/bloqsync/bloqsync.log (and stderr), so autostart
+/// runs can be diagnosed after a reboot.
+fn log(msg: &str) {
+    if let Some(home) = std::env::var_os("HOME") {
+        let dir = std::path::Path::new(&home).join(".cache/bloqsync");
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("bloqsync.log"))
+        {
+            use std::io::Write;
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let _ = writeln!(f, "[{secs}] {msg}");
+        }
+    }
+    eprintln!("{msg}");
+}
+
 struct BarRuntime {
     device: Arc<Device>,
     sync: SyncHandle,
+}
+
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+struct Ident {
+    uuid: String,
+    leds: usize,
+    firmware: String,
 }
 
 #[derive(Default)]
 struct AppState {
     capture: Mutex<Option<Arc<Capture>>>,
     bars: Mutex<HashMap<String, BarRuntime>>,
+    last_signature: Mutex<Option<String>>,
+    capture_signature: Mutex<Option<String>>,
+    ident_cache: Mutex<HashMap<String, Ident>>,
 }
 
 #[derive(serde::Serialize)]
@@ -31,19 +65,45 @@ struct DevDto {
 }
 
 #[tauri::command]
-fn list_devices() -> Vec<DevDto> {
-    enumerate()
+fn list_devices(state: State<AppState>) -> Vec<DevDto> {
+    let mut cache = state.ident_cache.lock().unwrap();
+    let list: Vec<DevDto> = enumerate()
         .into_iter()
-        .filter_map(|info| {
-            Device::open(&info).ok().map(|d| DevDto {
-                path: d.info.path.clone(),
-                id: d.info.id.clone(),
-                leds: d.led_count,
-                firmware: d.firmware.clone(),
-                uuid: d.uuid.clone(),
-            })
+        .map(|info| match Device::open(&info) {
+            Ok(d) => {
+                cache.insert(
+                    d.info.id.clone(),
+                    Ident {
+                        uuid: d.uuid.clone(),
+                        leds: d.led_count,
+                        firmware: d.firmware.clone(),
+                    },
+                );
+                DevDto {
+                    path: d.info.path.clone(),
+                    id: d.info.id.clone(),
+                    leds: d.led_count,
+                    firmware: d.firmware.clone(),
+                    uuid: d.uuid.clone(),
+                }
+            }
+            Err(_) => {
+                // Device is busy (e.g. streaming) - fall back to the cache so
+                // the UI keeps the same identity (no duplicate rows).
+                let c = cache.get(&info.id).cloned().unwrap_or_default();
+                DevDto {
+                    path: info.path.clone(),
+                    id: info.id.clone(),
+                    leds: c.leds,
+                    firmware: c.firmware,
+                    uuid: c.uuid,
+                }
+            }
         })
-        .collect()
+        .collect();
+    drop(cache);
+    persist_identities(&state);
+    list
 }
 
 /// Open the ScreenCast session (multiple monitors). Uses the stored restore
@@ -54,16 +114,51 @@ fn open_capture(state: State<AppState>) -> Result<Vec<StreamInfo>, String> {
 }
 
 fn open_capture_inner(state: &AppState) -> Result<Vec<StreamInfo>, String> {
+    open_capture_with(state, None)
+}
+
+/// Current capture streams without opening anything (UI polling).
+#[tauri::command]
+fn capture_info(state: State<AppState>) -> Vec<StreamInfo> {
+    state
+        .capture
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|c| c.streams.clone())
+        .unwrap_or_default()
+}
+
+fn open_capture_with(
+    state: &AppState,
+    token_override: Option<String>,
+) -> Result<Vec<StreamInfo>, String> {
     let mut cap = state.capture.lock().unwrap();
     if cap.is_none() {
-        let cfg = read_config();
-        let c = bloqsync::capture::start(true, cfg.restore_token.clone())
-            .map_err(|e| e.to_string())?;
-        if let Some(token) = &c.restore_token {
+        let sig = monitors::signature();
+        let token = token_override.or_else(|| {
+            let cfg = read_config();
+            let mut t = cfg.active_profile(&sig).and_then(|p| p.restore_token.clone());
+            if t.is_none() {
+                t = cfg.restore_token.clone();
+            }
+            t
+        });
+        let c = bloqsync::capture::start(true, token).map_err(|e| e.to_string())?;
+        log(&format!(
+            "capture opened: {} stream(s) {:?}, token={}, setup={}",
+            c.streams.len(),
+            c.streams.iter().map(|s| (s.index, s.size)).collect::<Vec<_>>(),
+            c.restore_token.is_some(),
+            sig
+        ));
+        if let Some(tok) = &c.restore_token {
             let mut cfg = read_config();
-            cfg.restore_token = Some(token.clone());
+            cfg.upsert_profile_token(&sig, tok);
+            cfg.restore_token = Some(tok.clone());
             write_config(&cfg);
         }
+        *state.capture_signature.lock().unwrap() = Some(sig);
         *cap = Some(Arc::new(c));
     }
     Ok(cap.as_ref().unwrap().streams.clone())
@@ -73,6 +168,7 @@ fn open_capture_inner(state: &AppState) -> Result<Vec<StreamInfo>, String> {
 fn close_capture(state: State<AppState>) -> Result<(), String> {
     stop_all_inner(&state);
     *state.capture.lock().unwrap() = None;
+    *state.capture_signature.lock().unwrap() = None;
     Ok(())
 }
 
@@ -150,6 +246,15 @@ fn start_bar_inner(
     let info = find_by_identity(bar_path)
         .ok_or_else(|| "Leiste nicht gefunden".to_string())?;
     let device = Arc::new(Device::open(&info).map_err(|e| e.to_string())?);
+    state.ident_cache.lock().unwrap().insert(
+        device.info.id.clone(),
+        Ident {
+            uuid: device.uuid.clone(),
+            leds: device.led_count,
+            firmware: device.firmware.clone(),
+        },
+    );
+    persist_identities(state);
     if let Some(b) = brightness {
         let _ = device.set_brightness(b);
     }
@@ -180,6 +285,18 @@ fn start_bar_inner(
         .lock()
         .unwrap()
         .insert(bar_path.to_string(), BarRuntime { device, sync: handle });
+    // Remember this mapping for the current monitor setup.
+    let sig = monitors::signature();
+    let mut c = read_config();
+    c.upsert_profile_bar(
+        &sig,
+        BarConfig {
+            bar_path: bar_path.to_string(),
+            stream_index,
+            reverse,
+        },
+    );
+    write_config(&c);
     Ok(())
 }
 
@@ -249,6 +366,16 @@ struct BarConfig {
     reverse: bool,
 }
 
+/// A saved mapping for one monitor setup (identified by `signature`).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+struct Profile {
+    signature: String,
+    #[serde(default)]
+    restore_token: Option<String>,
+    #[serde(default)]
+    bars: Vec<BarConfig>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Config {
     bars: Vec<BarConfig>,
@@ -271,6 +398,12 @@ struct Config {
     autostart: bool,
     #[serde(default)]
     autostart_sync: bool,
+    /// Per monitor-setup profiles (auto-created, auto-restored).
+    #[serde(default)]
+    profiles: Vec<Profile>,
+    /// Persistent mapping USB-port id -> device UUID + info.
+    #[serde(default)]
+    bar_uuids: std::collections::HashMap<String, Ident>,
 }
 
 fn default_filter() -> String {
@@ -300,7 +433,76 @@ impl Default for Config {
             restore_token: None,
             autostart: false,
             autostart_sync: false,
+            profiles: Vec::new(),
+            bar_uuids: std::collections::HashMap::new(),
         }
+    }
+}
+
+impl Config {
+    fn persist_uuids(&mut self, cache: &std::collections::HashMap<String, Ident>) {
+        for (id, ident) in cache {
+            if !ident.uuid.is_empty() {
+                self.bar_uuids.insert(id.clone(), ident.clone());
+            }
+        }
+    }
+}
+
+/// Persist the in-memory device identities into the config.
+fn persist_identities(state: &AppState) {
+    let snap = state.ident_cache.lock().unwrap().clone();
+    let mut cfg = read_config();
+    cfg.persist_uuids(&snap);
+    write_config(&cfg);
+}
+
+impl Config {
+    fn active_profile(&self, sig: &str) -> Option<&Profile> {
+        if sig.is_empty() {
+            return None;
+        }
+        self.profiles.iter().find(|p| p.signature == sig)
+    }
+
+    fn profile_mut(&mut self, sig: &str) -> &mut Profile {
+        if !self.profiles.iter().any(|p| p.signature == sig) {
+            self.profiles.push(Profile {
+                signature: sig.to_string(),
+                restore_token: None,
+                bars: Vec::new(),
+            });
+        }
+        self.profiles
+            .iter_mut()
+            .find(|p| p.signature == sig)
+            .unwrap()
+    }
+
+    fn upsert_profile_token(&mut self, sig: &str, token: &str) {
+        if sig.is_empty() {
+            return;
+        }
+        self.profile_mut(sig).restore_token = Some(token.to_string());
+    }
+
+    fn upsert_profile_bar(&mut self, sig: &str, bar: BarConfig) {
+        if sig.is_empty() {
+            return;
+        }
+        let p = self.profile_mut(sig);
+        if let Some(b) = p.bars.iter_mut().find(|b| b.bar_path == bar.bar_path) {
+            *b = bar;
+        } else {
+            p.bars.push(bar);
+        }
+    }
+
+    fn upsert_profile_bars(&mut self, sig: &str, bars: &[BarConfig]) {
+        if sig.is_empty() {
+            return;
+        }
+        self.profile_mut(sig).bars = bars.to_vec();
     }
 }
 
@@ -332,10 +534,26 @@ fn get_config() -> Config {
 
 #[tauri::command]
 fn save_config(mut cfg: Config) {
+    let existing = read_config();
     // Preserve the restore token (managed by Rust, not the UI).
     if cfg.restore_token.is_none() {
-        cfg.restore_token = read_config().restore_token;
+        cfg.restore_token = existing.restore_token.clone();
     }
+    // Preserve profiles (the UI does not send them).
+    if cfg.profiles.is_empty() {
+        cfg.profiles = existing.profiles.clone();
+    }
+    // Preserve configured bars that are not currently reported by the UI
+    // (e.g. a bar that is temporarily unplugged or on another port).
+    for b in existing.bars.clone() {
+        if !cfg.bars.iter().any(|n| n.bar_path == b.bar_path) {
+            cfg.bars.push(b);
+        }
+    }
+    // Mirror the current mapping into the profile for the active setup.
+    let sig = monitors::signature();
+    let bars = cfg.bars.clone();
+    cfg.upsert_profile_bars(&sig, &bars);
     write_config(&cfg);
 }
 
@@ -381,12 +599,22 @@ fn autostart_run(state: State<AppState>) -> Result<(), String> {
 
 fn autostart_run_inner(state: &AppState) -> Result<(), String> {
     let cfg = read_config();
-    if cfg.bars.is_empty() {
+    let sig = monitors::signature();
+    let prof = match cfg.active_profile(&sig) {
+        Some(p) => p.clone(),
+        None => {
+            log(&format!("autostart: no profile for setup {sig} - waiting"));
+            return Ok(());
+        }
+    };
+    let (token, bars) = (prof.restore_token.clone(), prof.bars.clone());
+    if bars.is_empty() {
         return Ok(());
     }
-    // Ensure capture is open (uses restore token).
-    let _ = open_capture_inner(&state)?;
-    for b in &cfg.bars {
+    log(&format!("autostart: setup={sig} bars={}", bars.len()));
+    // Ensure capture is open (uses profile/top-level restore token).
+    open_capture_with(state, token)?;
+    for b in &bars {
         let _ = start_bar_inner(
             state,
             &b.bar_path,
@@ -415,6 +643,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_devices,
             open_capture,
+            capture_info,
             close_capture,
             start_bar,
             stop_bar,
@@ -429,6 +658,17 @@ fn main() {
             autostart_run
         ])
         .setup(|app| {
+            // Seed the device-identity cache from the config so the UI keeps
+            // stable keys even before/without a successful identify.
+            {
+                let st = app.state::<AppState>();
+                let cfg = read_config();
+                let mut cache = st.ident_cache.lock().unwrap();
+                for (id, ident) in cfg.bar_uuids {
+                    cache.insert(id, ident);
+                }
+            }
+
             // Auto-start sync once at launch (done in Rust, not via the UI).
             if read_config().autostart_sync {
                 let handle = app.handle().clone();
@@ -436,8 +676,8 @@ fn main() {
                     std::thread::sleep(std::time::Duration::from_millis(2000));
                     let state = handle.state::<AppState>();
                     match autostart_run_inner(&state) {
-                        Ok(()) => eprintln!("bloqsync: autostart ok"),
-                        Err(e) => eprintln!("bloqsync: autostart failed: {e}"),
+                        Ok(()) => log("bloqsync: autostart ok"),
+                        Err(e) => log(&format!("bloqsync: autostart failed: {e}")),
                     }
                     let _ = handle.emit("autostart", ());
                 });
@@ -460,7 +700,8 @@ fn main() {
                 }
             });
 
-            // Watchdog: keep configured bars running (reconnect after replug).
+            // Watchdog: keep the capture in sync with the current monitor setup
+            // and the configured bars running (profile switching + reconnect).
             let handle = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(2));
@@ -469,13 +710,34 @@ fn main() {
                     continue;
                 }
                 let state = handle.state::<AppState>();
+                let sig = monitors::signature();
+                if sig.is_empty() {
+                    continue;
+                }
+                // Does the open capture still match the current setup?
+                let stale = {
+                    let cap_open = state.capture.lock().unwrap().is_some();
+                    let cap_sig = state.capture_signature.lock().unwrap().clone();
+                    cap_open && cap_sig.as_deref() != Some(sig.as_str())
+                };
+                if stale {
+                    log(&format!("setup changed -> {sig}: restarting capture"));
+                    stop_all_inner(&state);
+                    *state.capture.lock().unwrap() = None;
+                    *state.capture_signature.lock().unwrap() = None;
+                }
+                // Only act on setups we have a profile for (no dialog surprises).
+                let prof = match cfg.active_profile(&sig).cloned() {
+                    Some(p) => p,
+                    None => continue,
+                };
                 if state.capture.lock().unwrap().is_none() {
-                    if let Err(e) = open_capture_inner(&state) {
-                        eprintln!("bloqsync: watchdog capture: {e}");
+                    if let Err(e) = open_capture_with(&state, prof.restore_token.clone()) {
+                        log(&format!("bloqsync: watchdog capture: {e}"));
                         continue;
                     }
                 }
-                for b in &cfg.bars {
+                for b in &prof.bars {
                     let need = {
                         let bars = state.bars.lock().unwrap();
                         match bars.get(&b.bar_path) {
@@ -502,8 +764,8 @@ fn main() {
                             cfg.filter_strength,
                             cfg.max_frames as usize,
                         ) {
-                            Ok(()) => eprintln!("bloqsync: watchdog started {}", b.bar_path),
-                            Err(e) => eprintln!("bloqsync: watchdog {}: {e}", b.bar_path),
+                            Ok(()) => log(&format!("bloqsync: watchdog started {}", b.bar_path)),
+                            Err(e) => log(&format!("bloqsync: watchdog {}: {e}", b.bar_path)),
                         }
                     }
                 }

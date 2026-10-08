@@ -127,6 +127,22 @@ function renderBars() {
     });
     box.appendChild(row);
   }
+  // Also show configured bars that are currently not connected.
+  const present = new Set(devices.map((d) => d.uuid || d.id));
+  for (const b of savedConfig.bars || []) {
+    if (present.has(b.bar_path)) continue;
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `
+      <div class="bar-name">${b.bar_path}<span class="muted"> · nicht verbunden</span></div>
+      <span class="muted">—</span>
+      <label class="check"><input type="checkbox" disabled ${b.reverse ? "checked" : ""}/> gespiegelt</label>
+      <span class="bar-status muted">nicht verbunden</span>
+      <button class="bar-start primary" disabled>Start</button>
+      <button class="bar-stop" disabled>Stop</button>
+    `;
+    box.appendChild(row);
+  }
 }
 
 function currentConfig() {
@@ -203,6 +219,12 @@ setInterval(async () => {
     const running = st.filter((s) => s.running).length;
     $("status-dot").className = "dot " + (running ? "on" : "off");
     $("status-text").textContent = running ? `${running} Leiste(n) synchron` : "inaktiv";
+    // Keep the capture list in sync with the backend (autostart opens it in Rust).
+    const caps = await invoke("capture_info").catch(() => null);
+    if (caps && JSON.stringify(caps) !== JSON.stringify(streams)) {
+      streams = caps;
+      renderStreams();
+    }
   } catch (e) {}
 }, 700);
 
