@@ -72,7 +72,6 @@ struct Ident {
 struct AppState {
     capture: Mutex<Option<Arc<Capture>>>,
     bars: Mutex<HashMap<String, BarRuntime>>,
-    last_signature: Mutex<Option<String>>,
     capture_signature: Mutex<Option<String>>,
     ident_cache: Mutex<HashMap<String, Ident>>,
     /// True while the user shows a static colour / cinema (screen sync paused).

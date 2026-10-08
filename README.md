@@ -44,6 +44,35 @@ Dies ist ein sauberer Neuaufbau (Greenfield). Das bekannte Projekt
 eine falsche Frame-Kodierung und erreicht dadurch nur wenige FPS mit
 Aussetzern.
 
+## Installation
+
+**Für Anwender (empfohlen): fertige Pakete aus den GitHub *Releases*.**
+
+- **Debian / Ubuntu / Zorin / Mint / Pop!\_OS (.deb)**
+  ```bash
+  sudo apt install ./bloqsync_*.deb
+  ```
+  (oder Doppelklick – `apt` zieht alle Abhängigkeiten automatisch)
+- **Fedora / openSUSE (.rpm)**
+  ```bash
+  sudo dnf install ./bloqsync-*.rpm
+  ```
+- **Andere Distributionen (AppImage)**
+  ```bash
+  chmod +x bloqsync_*.AppImage && ./bloqsync_*.AppImage
+  ```
+
+Beim `.deb`/`.rpm` werden die nötigen Runtime-Bibliotheken (WebKitGTK, GTK3,
+PipeWire, PulseAudio, …) automatisch mitinstalliert – **kein Rust, keine
+Entwicklerpakete, keine Handarbeit**. Das Paket enthält außerdem die
+udev-Regel (Leisten-Zugriff + Tastatur-Interface unterdrücken).
+
+**Aus dem Quellcode (Entwickler):** `./install.sh` (installiert Build-Deps,
+baut und packt ein `.deb`) oder siehe „Bauen & Ausführen".
+
+> Beim ersten Bildschirm-Sync fragt GNOME einmal pro Login nach der
+> Freigabe (Sicherheitsfunktion des Portal). Danach läuft alles automatisch.
+
 ## Ergebnis
 
 - Flüssiger Sync mit vollem **54-LED**-Farbverlauf (Standard: **24 fps**,

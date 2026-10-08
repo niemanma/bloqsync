@@ -1,13 +1,5 @@
-# bloqsync – udev rule for the ROBOBLOQ SyncLight LED bar
-#
-# The bar is a composite HID device: interface 0 is the vendor control
-# channel, interface 1 pretends to be a keyboard and types a URL when the
-# device is plugged in (to open the manufacturer's website). This rule tells
-# libinput / the session to ignore that input device, so it never types.
-#
-# Install:
-#   sudo cp contrib/99-bloqsync.rules /etc/udev/rules.d/
-#   sudo udevadm control --reload
-#   sudo udevadm trigger --subsystem-match=input
-#
+# bloqsync – ROBOBLOQ SyncLight LED bar
+# 1) allow user access to the control interface (hidraw)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe07", MODE="0666"
+# 2) ignore the bar's keyboard interface (it types a URL when plugged in)
 ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe07", ENV{LIBINPUT_IGNORE_DEVICE}="1"
