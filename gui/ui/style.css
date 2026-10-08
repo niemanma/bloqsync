@@ -41,6 +41,8 @@ button:disabled { opacity: .45; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #06203f; font-weight: 600; }
 .muted { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 .sw { width: 40px; height: 40px; border-radius: 8px; padding: 0; }
+.sw-label { flex-direction: row; align-items: center; gap: 8px; }
+input[type="color"] { width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; }
 .dot { width: 10px; height: 10px; border-radius: 50%; }
 .dot.on { background: #34c759; box-shadow: 0 0 8px #34c759; }
 .dot.off { background: #5a5a62; }

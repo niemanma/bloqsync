@@ -75,13 +75,17 @@
     </section>
 
     <section class="card">
-      <h2>Statische Farbe (alle aktiven Leisten)</h2>
+      <h2>Statische Farbe <span class="muted">(pausiert den Sync)</span></h2>
       <div class="row">
         <button class="sw" data-rgb="255,0,0" style="background:#f00"></button>
         <button class="sw" data-rgb="0,255,0" style="background:#0f0"></button>
         <button class="sw" data-rgb="0,0,255" style="background:#00f"></button>
         <button class="sw" data-rgb="255,200,100" style="background:#ffc864"></button>
         <button class="sw" data-rgb="0,0,0" style="background:#000"></button>
+        <label class="sw-label">Eigene
+          <input type="color" id="custom-color" value="#ff8800" />
+        </label>
+        <button id="resume-sync" class="primary" style="margin-left:auto">Sync wieder starten</button>
       </div>
     </section>
   </main>

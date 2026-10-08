@@ -209,16 +209,41 @@ brightness.addEventListener("change", () => invoke("set_brightness", { value: pa
 document.querySelectorAll(".sw").forEach((b) => {
   b.addEventListener("click", () => {
     const [r, g, bl] = b.dataset.rgb.split(",").map(Number);
-    for (const d of devices) invoke("set_color", { barPath: (d.uuid || d.id), r, g, b: bl }).catch(() => {});
+    invoke("set_all_color", { r, g, b: bl }).catch(() => {});
   });
 });
+const customColor = $("custom-color");
+if (customColor) {
+  let t = null;
+  customColor.addEventListener("input", () => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      const v = customColor.value;
+      const r = parseInt(v.slice(1, 3), 16);
+      const g = parseInt(v.slice(3, 5), 16);
+      const b = parseInt(v.slice(5, 7), 16);
+      invoke("set_all_color", { r, g, b }).catch(() => {});
+    }, 150);
+  });
+}
+const resumeBtn = $("resume-sync");
+if (resumeBtn) {
+  resumeBtn.addEventListener("click", () => {
+    invoke("resume_sync").catch(() => {});
+  });
+}
 
 setInterval(async () => {
   try {
     const st = await invoke("status");
-    const running = st.filter((s) => s.running).length;
-    $("status-dot").className = "dot " + (running ? "on" : "off");
-    $("status-text").textContent = running ? `${running} Leiste(n) synchron` : "inaktiv";
+    const running = st.bars.filter((s) => s.running).length;
+    if (st.paused) {
+      $("status-dot").className = "dot off";
+      $("status-text").textContent = "pausiert (statische Farbe)";
+    } else {
+      $("status-dot").className = "dot " + (running ? "on" : "off");
+      $("status-text").textContent = running ? `${running} Leiste(n) synchron` : "inaktiv";
+    }
     // Keep the capture list in sync with the backend (autostart opens it in Rust).
     const caps = await invoke("capture_info").catch(() => null);
     if (caps && JSON.stringify(caps) !== JSON.stringify(streams)) {

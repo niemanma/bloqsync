@@ -53,6 +53,8 @@ struct AppState {
     last_signature: Mutex<Option<String>>,
     capture_signature: Mutex<Option<String>>,
     ident_cache: Mutex<HashMap<String, Ident>>,
+    /// True while the user shows a static colour (sync paused).
+    sync_paused: Mutex<bool>,
 }
 
 #[derive(serde::Serialize)]
@@ -198,6 +200,7 @@ fn start_bar(
     filter_strength: Option<u8>,
     max_frames: Option<usize>,
 ) -> Result<(), String> {
+    *state.sync_paused.lock().unwrap() = false;
     start_bar_inner(
         &state,
         &bar_path,
@@ -322,9 +325,16 @@ struct BarStatus {
     sent: u64,
 }
 
+#[derive(serde::Serialize)]
+struct StatusDto {
+    bars: Vec<BarStatus>,
+    paused: bool,
+}
+
 #[tauri::command]
-fn status(state: State<AppState>) -> Vec<BarStatus> {
-    state
+fn status(state: State<AppState>) -> StatusDto {
+    let paused = *state.sync_paused.lock().unwrap();
+    let bars = state
         .bars
         .lock()
         .unwrap()
@@ -334,7 +344,8 @@ fn status(state: State<AppState>) -> Vec<BarStatus> {
             running: b.sync.is_running(),
             sent: b.sync.sent.load(std::sync::atomic::Ordering::Relaxed),
         })
-        .collect()
+        .collect();
+    StatusDto { bars, paused }
 }
 
 #[tauri::command]
@@ -345,16 +356,25 @@ fn set_brightness(state: State<AppState>, value: u8) -> Result<(), String> {
     Ok(())
 }
 
+/// Show a static colour on all bars and pause the sync so it is not
+/// overwritten. Restart with [`resume_sync`].
 #[tauri::command]
-fn set_color(state: State<AppState>, bar_path: String, r: u8, g: u8, b: u8) -> Result<(), String> {
-    if let Some(rt) = state.bars.lock().unwrap().get(&bar_path) {
-        rt.device.set_persistent_color([r, g, b]).map_err(|e| e.to_string())?;
-    } else if let Some(info) = find_by_identity(&bar_path) {
+fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Result<(), String> {
+    *state.sync_paused.lock().unwrap() = true;
+    stop_all_inner(&state);
+    for info in enumerate() {
         if let Ok(d) = Device::open(&info) {
-            d.set_persistent_color([r, g, b]).map_err(|e| e.to_string())?;
+            let _ = d.set_persistent_color([r, g, b]);
         }
     }
     Ok(())
+}
+
+/// Resume screen sync after a static colour was shown.
+#[tauri::command]
+fn resume_sync(state: State<AppState>) -> Result<(), String> {
+    *state.sync_paused.lock().unwrap() = false;
+    autostart_run_inner(&state)
 }
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -650,7 +670,8 @@ fn main() {
             stop_all,
             status,
             set_brightness,
-            set_color,
+            set_all_color,
+            resume_sync,
             get_config,
             save_config,
             autostart_enabled,
@@ -710,6 +731,9 @@ fn main() {
                     continue;
                 }
                 let state = handle.state::<AppState>();
+                if *state.sync_paused.lock().unwrap() {
+                    continue;
+                }
                 let sig = monitors::signature();
                 if sig.is_empty() {
                     continue;
