@@ -9,7 +9,7 @@
 >
 > **Dieser Code wurde vollständig von KI erzeugt** – Modell **DeepSeek V4.1
 > Flash**, verwendet über **OpenRouter**. Verbrauch für dieses Projekt:
-> **~504,3K Tokens (Context)**; Kosten über OpenRouter: **1,29 US‑$**. Es ist
+> **~800K Tokens (Context)**; Kosten über OpenRouter: **~4 US‑$**. Es ist
 > **kein** von Hand geschriebenes Projekt.
 >
 > Der Autor hat **nicht vor**, dieses Projekt zu maintainen oder
