@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "bloqsync desktop app (unofficial, AI-generated, public domain)"
 license = "Unlicense"
-repository = "https://github.com/littletachibana/bloqsync"
+repository = "https://github.com/niemanma/bloqsync"
 
 [workspace]
 
