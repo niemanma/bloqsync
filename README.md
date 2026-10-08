@@ -90,6 +90,11 @@ baut und packt ein `.deb`) oder siehe „Bauen & Ausführen".
 
 ---
 
+## Screenshots
+
+![Hauptfenster](docs/screenshot-main.png)
+![Leisten, Kino-Modus, Statische Farbe](docs/screenshot-settings.png)
+
 ## Hardware & Protokoll (reverse-engineered & verifiziert)
 
 Gerät: `VID 0x1A86 / PID 0xFE07` (Hersteller „ROBOBLOQ“), **HID Interface 0**

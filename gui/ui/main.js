@@ -374,3 +374,4 @@ try {
   devices = await invoke("list_devices");
   renderBars();
 })();
+
