@@ -71,6 +71,20 @@ enum Cmd {
         #[arg(long, default_value_t = 60)]
         fps: u32,
     },
+    /// Print audio features (cinema mode) for N seconds.
+    AudioTest {
+        #[arg(default_value_t = 15)]
+        seconds: u64,
+    },
+    /// Audio-reactive "cinema" light (works for DRM/Netflix).
+    AudioSync {
+        #[arg(default_value_t = 60)]
+        seconds: u64,
+        #[arg(long, default_value_t = 1.0)]
+        sensitivity: f32,
+        #[arg(long, default_value_t = 0.7)]
+        brightness: f32,
+    },
 }
 
 fn pick(target: &Option<String>) -> Result<Device> {
@@ -353,6 +367,54 @@ fn main() -> Result<()> {
             device.set_persistent_color([255, 200, 100])?;
             println!("fertig");
         }
+        Cmd::AudioTest { seconds } => {
+            let h = bloqsync::audio::start(None)?;
+            println!("audio source: {}", h.source);
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_secs(seconds) {
+                std::thread::sleep(Duration::from_millis(200));
+                if let Some(s) = *h.spectrum.lock().unwrap() {
+                    println!(
+                        "e={:.2} centroid={:.2} flat={:.2} onset={:.2} stereo={:+.2} lvl={:.3} bands=[{:.2} {:.2} {:.2} {:.2} {:.2} {:.2}]",
+                        s.energy, s.centroid, s.flatness, s.onset, s.stereo, s.rms,
+                        s.bands[0], s.bands[1], s.bands[2], s.bands[3], s.bands[4], s.bands[5]
+                    );
+                }
+            }
+            h.stop();
+        }
+        Cmd::AudioSync {
+            seconds,
+            sensitivity,
+            brightness,
+        } => {
+            use bloqsync::cinema::{Cinema, CinemaParams};
+            let d = pick(&cli.device)?;
+            let h = bloqsync::audio::start(None)?;
+            println!("Cinema-Sync auf {} (source {})", d.info.path, h.source);
+            let mut cinema = Cinema::new();
+            let params = CinemaParams {
+                sensitivity,
+                master: brightness,
+                ..Default::default()
+            };
+            let period = Duration::from_millis(20);
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_secs(seconds) {
+                let t = Instant::now();
+                if let Some(s) = *h.spectrum.lock().unwrap() {
+                    let cols = cinema.render(&s, d.led_count, &params);
+                    d.send_colors_paced(&cols, Duration::from_millis(3), 8)?;
+                }
+                let e = t.elapsed();
+                if e < period {
+                    std::thread::sleep(period - e);
+                }
+            }
+            h.stop();
+            d.set_persistent_color([255, 200, 100])?;
+        }
     }
     Ok(())
 }
+

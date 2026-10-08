@@ -51,6 +51,8 @@ Aussetzern.
 - Echtes Per-LED/Per-Zonen-Steuerung über das schnelle `setSyncScreen`-Protokoll
 - Capture über **PipeWire** (xdg-desktop-portal ScreenCast), nicht per Screenshot-Subprozess
 - Geräte-Autoerkennung, Konfigurations-Persistenz, Tauri-GUI
+- **Kino-Modus (Audio-reactive)** für DRM-Inhalte (Netflix u. a.): feste
+  Grundfarbe + fließende, kontrastbasierte Helligkeit aus dem Ton
 
 ---
 
@@ -197,6 +199,22 @@ Unter „Flacker-Filter“ stehen zum Vergleich bereit: `keine`, `Deadband`,
 `Quantisieren`, `Quantisieren + weich`, `Median 3/5`, `Mittelwert 4`,
 `Weich (Hysterese+Ramp)` und `Test (Negativ)` (diagnostisch). Der Filter wird
 beim **Start** der Leiste angewendet.
+
+## Kino-Modus (Audio-reactive, für DRM/Netflix)
+
+Bei kopiergeschützten Streams liefert der ScreenCast nur Schwarz, daher gibt es
+einen rein **audio-reaktiven** Modus:
+
+- Capture des Default-Sink-**Monitors** (PulseAudio/PipeWire).
+- FFT-Merkmale: Band-Energien, Gesamtlautheit (RMS mit AGC),
+  Spektral-Centroid, Flatness, Onset, Stereo.
+- **Kontext/Dynamik**: kurzfristige (~0.15 s) vs. langfristige (~3 s) Lautheit
+  → **Kontrast** (Szenen-Schwellen statt Takt).
+- Mapping: **feste Grundfarbe** + Ruhepegel; nur die Helligkeit fließt mit
+  Szenen-Lautheit und Kontrast (time-based Trägheit). Kein Farbwechsel, kein
+  Beat-Flimmern.
+- Regler: Grundfarbe, Helligkeit, Ruhepegel, Trägheit, Kontrast, Puls,
+  Sensitivität (persistent).
 
 ## Plug & Play (Autostart, Hotplug, Restore-Token)
 

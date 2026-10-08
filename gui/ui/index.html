@@ -75,6 +75,24 @@
     </section>
 
     <section class="card">
+      <h2>Kino-Modus <span class="muted">(Audio – für Netflix/DRM)</span></h2>
+      <div class="grid zones">
+        <label>Grundfarbe <input type="color" id="cin-color" value="#5a2882" /></label>
+        <label>Sensitivität <input type="range" id="cin-sens" min="30" max="250" value="100" /><output id="cin-sens-out">1.00</output></label>
+        <label>Helligkeit <input type="range" id="cin-bri" min="10" max="100" value="70" /><output id="cin-bri-out">0.70</output></label>
+        <label>Ruhepegel <input type="range" id="cin-floor" min="0" max="80" value="35" /><output id="cin-floor-out">0.35</output></label>
+        <label>Trägheit <input type="range" id="cin-smooth" min="20" max="300" value="60" /><output id="cin-smooth-out">0.60</output></label>
+        <label>Kontrast <input type="range" id="cin-contrast" min="0" max="150" value="100" /><output id="cin-contrast-out">1.00</output></label>
+        <label>Puls <input type="range" id="cin-pulse" min="0" max="100" value="0" /><output id="cin-pulse-out">0.00</output></label>
+      </div>
+      <div class="row">
+        <button id="cinema-start" class="primary">Kino-Modus starten</button>
+        <button id="cinema-stop">Kino-Modus stoppen</button>
+      </div>
+      <p class="muted">Reagiert nur auf den Ton – funktioniert auch bei kopiergeschützten Streams.</p>
+    </section>
+
+    <section class="card">
       <h2>Statische Farbe <span class="muted">(pausiert den Sync)</span></h2>
       <div class="row">
         <button class="sw" data-rgb="255,0,0" style="background:#f00"></button>

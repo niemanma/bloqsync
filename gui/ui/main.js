@@ -18,6 +18,12 @@ const fps = bindSlider("fps", "fps-out", (v) => v);
 const smooth = bindSlider("smooth", "smooth-out", (v) => (v / 100).toFixed(2));
 const brightness = bindSlider("brightness", "brightness-out", (v) => v);
 const filterStrength = bindSlider("filter-strength", "filter-strength-out", (v) => v);
+const cinSens = bindSlider("cin-sens", "cin-sens-out", (v) => (v / 100).toFixed(2));
+const cinBri = bindSlider("cin-bri", "cin-bri-out", (v) => (v / 100).toFixed(2));
+const cinPulse = bindSlider("cin-pulse", "cin-pulse-out", (v) => (v / 100).toFixed(2));
+const cinFloor = bindSlider("cin-floor", "cin-floor-out", (v) => (v / 100).toFixed(2));
+const cinSmooth = bindSlider("cin-smooth", "cin-smooth-out", (v) => (v / 100).toFixed(2));
+const cinContrast = bindSlider("cin-contrast", "cin-contrast-out", (v) => (v / 100).toFixed(2));
 const filterSel = $("filter");
 const maxFrames = $("max-frames");
 const autostart = $("autostart");
@@ -164,6 +170,14 @@ function currentConfig() {
     max_frames: parseInt(maxFrames.value, 10),
     autostart: autostart.checked,
     autostart_sync: autostartSync.checked,
+    custom_color: $("custom-color").value,
+    cinema_color: $("cin-color").value,
+    cinema_sensitivity: parseFloat(cinSens.value) / 100,
+    cinema_brightness: parseFloat(cinBri.value) / 100,
+    cinema_floor: parseFloat(cinFloor.value) / 100,
+    cinema_smooth: parseFloat(cinSmooth.value) / 100,
+    cinema_contrast: parseFloat(cinContrast.value) / 100,
+    cinema_pulse: parseFloat(cinPulse.value) / 100,
   };
 }
 function saveConfig() {
@@ -232,12 +246,36 @@ if (resumeBtn) {
     invoke("resume_sync").catch(() => {});
   });
 }
+const cinemaStart = $("cinema-start");
+if (cinemaStart) {
+  cinemaStart.addEventListener("click", () => {
+    const v = $("cin-color").value;
+    invoke("cinema_start", {
+      sensitivity: parseFloat(cinSens.value) / 100,
+      brightness: parseFloat(cinBri.value) / 100,
+      onset: parseFloat(cinPulse.value) / 100,
+      floor: parseFloat(cinFloor.value) / 100,
+      smooth: parseFloat(cinSmooth.value) / 100,
+      contrast: parseFloat(cinContrast.value) / 100,
+      r: parseInt(v.slice(1, 3), 16),
+      g: parseInt(v.slice(3, 5), 16),
+      b: parseInt(v.slice(5, 7), 16),
+    }).catch(() => {});
+  });
+}
+const cinemaStop = $("cinema-stop");
+if (cinemaStop) {
+  cinemaStop.addEventListener("click", () => invoke("cinema_stop").catch(() => {}));
+}
 
 setInterval(async () => {
   try {
     const st = await invoke("status");
     const running = st.bars.filter((s) => s.running).length;
-    if (st.paused) {
+    if (st.cinema) {
+      $("status-dot").className = "dot on";
+      $("status-text").textContent = "Kino-Modus (Audio)";
+    } else if (st.paused) {
       $("status-dot").className = "dot off";
       $("status-text").textContent = "pausiert (statische Farbe)";
     } else {
@@ -258,6 +296,11 @@ autostart.addEventListener("change", async () => {
   saveConfig();
 });
 autostartSync.addEventListener("change", saveConfig);
+[cinSens, cinBri, cinFloor, cinSmooth, cinContrast, cinPulse].forEach((el) =>
+  el && el.addEventListener("change", saveConfig)
+);
+$("cin-color").addEventListener("change", saveConfig);
+$("custom-color").addEventListener("change", saveConfig);
 
 try {
   const { listen } = window.__TAURI__.event;
@@ -287,6 +330,14 @@ try {
   maxFrames.value = savedConfig.max_frames ?? 0;
   autostart.checked = !!savedConfig.autostart;
   autostartSync.checked = !!savedConfig.autostart_sync;
+  if (savedConfig.custom_color) $("custom-color").value = savedConfig.custom_color;
+  if (savedConfig.cinema_color) $("cin-color").value = savedConfig.cinema_color;
+  cinSens.value = Math.round((savedConfig.cinema_sensitivity ?? 1.0) * 100); cinSens.dispatchEvent(new Event("input"));
+  cinBri.value = Math.round((savedConfig.cinema_brightness ?? 0.7) * 100); cinBri.dispatchEvent(new Event("input"));
+  cinFloor.value = Math.round((savedConfig.cinema_floor ?? 0.35) * 100); cinFloor.dispatchEvent(new Event("input"));
+  cinSmooth.value = Math.round((savedConfig.cinema_smooth ?? 0.6) * 100); cinSmooth.dispatchEvent(new Event("input"));
+  cinContrast.value = Math.round((savedConfig.cinema_contrast ?? 1.0) * 100); cinContrast.dispatchEvent(new Event("input"));
+  cinPulse.value = Math.round((savedConfig.cinema_pulse ?? 0.0) * 100); cinPulse.dispatchEvent(new Event("input"));
 
   devices = await invoke("list_devices");
   renderBars();

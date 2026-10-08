@@ -1,12 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use bloqsync::audio::AudioHandle;
 use bloqsync::capture::{Capture, StreamInfo};
+use bloqsync::cinema::{Cinema, CinemaParams};
 use bloqsync::device::{enumerate, find_by_identity, Device};
 use bloqsync::engine::{spawn, SyncConfig, SyncHandle};
 use bloqsync::filters::FilterKind;
 use bloqsync::sampling::Layout;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
 
@@ -39,6 +42,25 @@ struct BarRuntime {
     sync: SyncHandle,
 }
 
+struct CinemaRuntime {
+    audio: AudioHandle,
+    running: Arc<std::sync::atomic::AtomicBool>,
+    devices: Vec<Arc<Device>>,
+    thread: std::thread::JoinHandle<()>,
+}
+
+impl CinemaRuntime {
+    fn stop(self) {
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        self.audio.stop();
+        let _ = self.thread.join();
+        for d in &self.devices {
+            let _ = d.set_persistent_color([255, 200, 100]);
+        }
+    }
+}
+
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct Ident {
     uuid: String,
@@ -53,8 +75,9 @@ struct AppState {
     last_signature: Mutex<Option<String>>,
     capture_signature: Mutex<Option<String>>,
     ident_cache: Mutex<HashMap<String, Ident>>,
-    /// True while the user shows a static colour (sync paused).
+    /// True while the user shows a static colour / cinema (screen sync paused).
     sync_paused: Mutex<bool>,
+    cinema: Mutex<Option<CinemaRuntime>>,
 }
 
 #[derive(serde::Serialize)]
@@ -200,6 +223,7 @@ fn start_bar(
     filter_strength: Option<u8>,
     max_frames: Option<usize>,
 ) -> Result<(), String> {
+    cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     start_bar_inner(
         &state,
@@ -329,11 +353,13 @@ struct BarStatus {
 struct StatusDto {
     bars: Vec<BarStatus>,
     paused: bool,
+    cinema: bool,
 }
 
 #[tauri::command]
 fn status(state: State<AppState>) -> StatusDto {
     let paused = *state.sync_paused.lock().unwrap();
+    let cinema = state.cinema.lock().unwrap().is_some();
     let bars = state
         .bars
         .lock()
@@ -345,7 +371,7 @@ fn status(state: State<AppState>) -> StatusDto {
             sent: b.sync.sent.load(std::sync::atomic::Ordering::Relaxed),
         })
         .collect();
-    StatusDto { bars, paused }
+    StatusDto { bars, paused, cinema }
 }
 
 #[tauri::command]
@@ -373,8 +399,117 @@ fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Result<(), Stri
 /// Resume screen sync after a static colour was shown.
 #[tauri::command]
 fn resume_sync(state: State<AppState>) -> Result<(), String> {
+    cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     autostart_run_inner(&state)
+}
+
+#[tauri::command]
+fn cinema_start(
+    state: State<AppState>,
+    sensitivity: Option<f32>,
+    brightness: Option<f32>,
+    r: Option<u8>,
+    g: Option<u8>,
+    b: Option<u8>,
+    onset: Option<f32>,
+    floor: Option<f32>,
+    smooth: Option<f32>,
+    contrast: Option<f32>,
+) -> Result<(), String> {
+    cinema_start_inner(
+        &state,
+        sensitivity.unwrap_or(1.0),
+        brightness.unwrap_or(0.7),
+        [r.unwrap_or(255), g.unwrap_or(160), b.unwrap_or(60)],
+        onset.unwrap_or(0.0),
+        floor.unwrap_or(0.35),
+        smooth.unwrap_or(0.6),
+        contrast.unwrap_or(0.5),
+    )
+}
+
+fn cinema_stop_inner(state: &AppState) {
+    if let Some(c) = state.cinema.lock().unwrap().take() {
+        c.stop();
+    }
+}
+
+#[tauri::command]
+fn cinema_stop(state: State<AppState>) -> Result<(), String> {
+    cinema_stop_inner(&state);
+    Ok(())
+}
+
+/// Audio-reactive "cinema" light for DRM content (Netflix etc.).
+fn cinema_start_inner(
+    state: &AppState,
+    sensitivity: f32,
+    brightness: f32,
+    base: [u8; 3],
+    onset_gain: f32,
+    floor: f32,
+    smooth: f32,
+    contrast: f32,
+) -> Result<(), String> {
+    cinema_stop_inner(state);
+    *state.sync_paused.lock().unwrap() = true;
+    stop_all_inner(state);
+    // Free the screen capture while in cinema mode.
+    *state.capture.lock().unwrap() = None;
+    *state.capture_signature.lock().unwrap() = None;
+
+    let audio = bloqsync::audio::start(None).map_err(|e| e.to_string())?;
+    let spectrum = audio.spectrum.clone();
+    let mut devices = Vec::new();
+    for info in enumerate() {
+        if let Ok(d) = Device::open(&info) {
+            devices.push(Arc::new(d));
+        }
+    }
+    if devices.is_empty() {
+        return Err("keine Leiste gefunden".into());
+    }
+    log(&format!("cinema started on {} bar(s), source {}", devices.len(), audio.source));
+    let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let running_t = running.clone();
+    let params = CinemaParams {
+        base,
+        sensitivity,
+        master: brightness,
+        onset_gain,
+        floor,
+        smooth_secs: smooth,
+        contrast_gain: contrast,
+        ..Default::default()
+    };
+    let devices_thread = devices.clone();
+    let thread = std::thread::Builder::new()
+        .name("bloqsync-cinema".into())
+        .spawn(move || {
+            let mut states: Vec<Cinema> = (0..devices_thread.len()).map(|_| Cinema::new()).collect();
+            let period = Duration::from_millis(20);
+            while running_t.load(std::sync::atomic::Ordering::Relaxed) {
+                let t = Instant::now();
+                let s = spectrum.lock().unwrap().unwrap_or_default();
+                for (i, d) in devices_thread.iter().enumerate() {
+                    let cols = states[i].render(&s, d.led_count, &params);
+                    let _ = d.send_colors_paced(&cols, Duration::from_millis(3), 8);
+                }
+                let e = t.elapsed();
+                if e < period {
+                    std::thread::sleep(period - e);
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    *state.cinema.lock().unwrap() = Some(CinemaRuntime {
+        audio,
+        running,
+        devices,
+        thread,
+    });
+    Ok(())
 }
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -424,6 +559,44 @@ struct Config {
     /// Persistent mapping USB-port id -> device UUID + info.
     #[serde(default)]
     bar_uuids: std::collections::HashMap<String, Ident>,
+    #[serde(default = "default_custom_color")]
+    custom_color: String,
+    #[serde(default = "default_cinema_color")]
+    cinema_color: String,
+    #[serde(default = "default_cin_sens")]
+    cinema_sensitivity: f32,
+    #[serde(default = "default_cin_bri")]
+    cinema_brightness: f32,
+    #[serde(default = "default_cin_floor")]
+    cinema_floor: f32,
+    #[serde(default = "default_cin_smooth")]
+    cinema_smooth: f32,
+    #[serde(default = "default_cin_contrast")]
+    cinema_contrast: f32,
+    #[serde(default)]
+    cinema_pulse: f32,
+}
+
+fn default_custom_color() -> String {
+    "#ff8800".to_string()
+}
+fn default_cinema_color() -> String {
+    "#5a2882".to_string()
+}
+fn default_cin_sens() -> f32 {
+    1.0
+}
+fn default_cin_bri() -> f32 {
+    0.7
+}
+fn default_cin_floor() -> f32 {
+    0.35
+}
+fn default_cin_smooth() -> f32 {
+    0.6
+}
+fn default_cin_contrast() -> f32 {
+    1.0
 }
 
 fn default_filter() -> String {
@@ -455,6 +628,14 @@ impl Default for Config {
             autostart_sync: false,
             profiles: Vec::new(),
             bar_uuids: std::collections::HashMap::new(),
+            custom_color: default_custom_color(),
+            cinema_color: default_cinema_color(),
+            cinema_sensitivity: 1.0,
+            cinema_brightness: 0.7,
+            cinema_floor: 0.35,
+            cinema_smooth: 0.6,
+            cinema_contrast: 1.0,
+            cinema_pulse: 0.0,
         }
     }
 }
@@ -672,6 +853,8 @@ fn main() {
             set_brightness,
             set_all_color,
             resume_sync,
+            cinema_start,
+            cinema_stop,
             get_config,
             save_config,
             autostart_enabled,
