@@ -1,6 +1,6 @@
 [package]
 name = "bloqsync"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "High-performance ambient light sync for ROBOBLOQ SyncLight LED bars (unofficial, AI-generated, public domain)"
 license = "Unlicense"

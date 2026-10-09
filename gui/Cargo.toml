@@ -1,6 +1,6 @@
 [package]
 name = "bloqsync-gui"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "bloqsync desktop app (unofficial, AI-generated, public domain)"
 license = "Unlicense"
