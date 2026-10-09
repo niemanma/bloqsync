@@ -196,3 +196,152 @@ fn quant(v: u8, q: u8) -> u8 {
     let r = ((v as u16 + q / 2) / q) * q;
     r.min(255) as u8
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn one(c: Rgb) -> Vec<Rgb> {
+        vec![c]
+    }
+
+    #[test]
+    fn snap_keeps_reference_within_threshold() {
+        assert_eq!(snap(100, 105, 5), 105);
+        assert_eq!(snap(100, 95, 5), 95);
+        assert_eq!(snap(100, 105, 4), 100);
+        assert_eq!(snap(100, 100, 0), 100);
+    }
+
+    #[test]
+    fn quant_rounds_to_nearest_multiple() {
+        assert_eq!(quant(0, 4), 0);
+        assert_eq!(quant(1, 4), 0);
+        assert_eq!(quant(2, 4), 4);
+        assert_eq!(quant(3, 4), 4);
+        assert_eq!(quant(100, 8), 104);
+        assert_eq!(quant(255, 2), 255);
+        assert_eq!(quant(255, 255), 255);
+    }
+
+    #[test]
+    fn none_is_passthrough() {
+        let mut st = FilterState::default();
+        let input = [[1, 2, 3], [4, 5, 6]];
+        assert_eq!(st.process(&input, FilterKind::None, 8, &[]), input.to_vec());
+        assert!(st.history.is_empty());
+    }
+
+    #[test]
+    fn deadband_length_mismatch_passes_through() {
+        let mut st = FilterState::default();
+        let input = [[1, 2, 3]];
+        assert_eq!(st.process(&input, FilterKind::Deadband, 8, &[]), input.to_vec());
+    }
+
+    #[test]
+    fn deadband_snaps_within_threshold() {
+        let mut st = FilterState::default();
+        let last = one([90, 90, 90]);
+        assert_eq!(
+            st.process(&one([100, 100, 100]), FilterKind::Deadband, 20, &last),
+            one([90, 90, 90])
+        );
+        assert_eq!(
+            st.process(&one([100, 100, 100]), FilterKind::Deadband, 5, &last),
+            one([100, 100, 100])
+        );
+    }
+
+    #[test]
+    fn quantize_rounds_channels() {
+        let mut st = FilterState::default();
+        assert_eq!(
+            st.process(&one([5, 10, 15]), FilterKind::Quantize, 10, &[]),
+            one([10, 10, 20])
+        );
+    }
+
+    #[test]
+    fn quantize_smooth_seeds_then_eases() {
+        let mut st = FilterState::default();
+        assert_eq!(
+            st.process(&one([5, 10, 15]), FilterKind::QuantizeSmooth, 10, &[]),
+            one([10, 10, 20])
+        );
+        assert_eq!(
+            st.process(&one([15, 15, 15]), FilterKind::QuantizeSmooth, 10, &[]),
+            one([14, 14, 20])
+        );
+    }
+
+    #[test]
+    fn smooth_seeds_then_ramps_towards_target() {
+        let mut st = FilterState::default();
+        assert_eq!(st.process(&one([0, 0, 0]), FilterKind::Smooth, 5, &[]), one([0, 0, 0]));
+        assert_eq!(
+            st.process(&one([100, 100, 100]), FilterKind::Smooth, 5, &[]),
+            one([30, 30, 30])
+        );
+        assert_eq!(
+            st.process(&one([100, 100, 100]), FilterKind::Smooth, 5, &[]),
+            one([51, 51, 51])
+        );
+    }
+
+    #[test]
+    fn median3_tracks_window() {
+        let mut st = FilterState::default();
+        assert_eq!(st.process(&one([10, 0, 0]), FilterKind::Median3, 0, &[]), one([10, 0, 0]));
+        assert_eq!(st.process(&one([20, 0, 0]), FilterKind::Median3, 0, &[]), one([20, 0, 0]));
+        assert_eq!(st.process(&one([5, 0, 0]), FilterKind::Median3, 0, &[]), one([10, 0, 0]));
+        assert_eq!(st.process(&one([1, 0, 0]), FilterKind::Median3, 0, &[]), one([5, 0, 0]));
+    }
+
+    #[test]
+    fn median5_tracks_window() {
+        let mut st = FilterState::default();
+        for v in [10u8, 20, 30, 40, 50] {
+            st.process(&one([v, 0, 0]), FilterKind::Median5, 0, &[]);
+        }
+        assert_eq!(st.process(&one([0, 0, 0]), FilterKind::Median5, 0, &[]), one([30, 0, 0]));
+    }
+
+    #[test]
+    fn mean4_averages_window() {
+        let mut st = FilterState::default();
+        assert_eq!(st.process(&one([0, 0, 0]), FilterKind::Mean4, 0, &[]), one([0, 0, 0]));
+        assert_eq!(st.process(&one([4, 4, 4]), FilterKind::Mean4, 0, &[]), one([2, 2, 2]));
+        st.process(&one([8, 8, 8]), FilterKind::Mean4, 0, &[]);
+        assert_eq!(st.process(&one([12, 12, 12]), FilterKind::Mean4, 0, &[]), one([6, 6, 6]));
+    }
+
+    #[test]
+    fn window_history_is_capped() {
+        let mut st = FilterState::default();
+        for v in [1u8, 2, 3, 4, 5, 6] {
+            st.process(&one([v, 0, 0]), FilterKind::Median3, 0, &[]);
+        }
+        assert_eq!(st.history.len(), 3);
+    }
+
+    #[test]
+    fn test_filter_inverts() {
+        let mut st = FilterState::default();
+        assert_eq!(
+            st.process(&one([10, 20, 30]), FilterKind::Test, 0, &[]),
+            one([245, 235, 225])
+        );
+    }
+
+    #[test]
+    fn reset_clears_all_state() {
+        let mut st = FilterState::default();
+        st.process(&one([1, 2, 3]), FilterKind::Median3, 0, &[]);
+        st.process(&one([1, 2, 3]), FilterKind::QuantizeSmooth, 8, &[]);
+        st.reset();
+        assert!(st.history.is_empty());
+        assert!(st.ema.is_empty());
+        assert!(st.disp.is_empty());
+    }
+}
