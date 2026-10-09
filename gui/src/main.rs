@@ -31,7 +31,10 @@ fn main() {
             commands::save_config,
             commands::autostart_enabled,
             commands::set_autostart,
-            commands::autostart_run
+            commands::autostart_run,
+            commands::list_presets,
+            commands::save_preset,
+            commands::delete_preset
         ])
         .setup(|app| {
             runtime::seed_ident_cache(app.handle());

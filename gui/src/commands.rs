@@ -1,6 +1,6 @@
 //! Tauri commands exposed to the UI. Thin adapters over [`crate::runtime`].
 
-use crate::config::{read_config, write_config, Config, Ident};
+use crate::config::{read_config, write_config, Config, Ident, Preset};
 use crate::logging::log;
 use crate::monitors;
 use crate::runtime::{self, BarSettings, parse_filter};
@@ -300,6 +300,10 @@ pub(crate) fn save_config(mut cfg: Config) {
     if cfg.profiles.is_empty() {
         cfg.profiles = existing.profiles.clone();
     }
+    // Preserve presets (managed via save_preset/delete_preset, not save_config).
+    if cfg.presets.is_empty() {
+        cfg.presets = existing.presets.clone();
+    }
     // Preserve configured bars that are not currently reported by the UI
     // (e.g. a bar that is temporarily unplugged or on another port).
     for b in existing.bars.clone() {
@@ -327,4 +331,25 @@ pub(crate) fn set_autostart(enabled: bool) -> Result<(), String> {
 #[tauri::command]
 pub(crate) fn autostart_run(state: State<AppState>) -> Result<(), String> {
     runtime::autostart_run_inner(&state)
+}
+
+#[tauri::command]
+pub(crate) fn list_presets() -> Vec<Preset> {
+    read_config().presets
+}
+
+#[tauri::command]
+pub(crate) fn save_preset(preset: Preset) -> Result<(), String> {
+    let mut cfg = read_config();
+    cfg.upsert_preset(preset);
+    write_config(&cfg);
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn delete_preset(name: String) -> Result<(), String> {
+    let mut cfg = read_config();
+    cfg.remove_preset(&name);
+    write_config(&cfg);
+    Ok(())
 }

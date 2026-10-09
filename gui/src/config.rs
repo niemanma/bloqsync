@@ -32,6 +32,32 @@ pub(crate) struct Profile {
     pub(crate) bars: Vec<BarConfig>,
 }
 
+/// A user-named snapshot of the tunable global settings. Fields default so a
+/// preset written by an older/newer UI version still loads.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub(crate) struct Preset {
+    pub(crate) name: String,
+    pub(crate) fps: u32,
+    pub(crate) smooth: f32,
+    pub(crate) brightness: u8,
+    pub(crate) left: usize,
+    pub(crate) top: usize,
+    pub(crate) right: usize,
+    pub(crate) bottom: usize,
+    pub(crate) filter: String,
+    pub(crate) filter_strength: u8,
+    pub(crate) max_frames: u32,
+    pub(crate) custom_color: String,
+    pub(crate) cinema_color: String,
+    pub(crate) cinema_sensitivity: f32,
+    pub(crate) cinema_brightness: f32,
+    pub(crate) cinema_floor: f32,
+    pub(crate) cinema_smooth: f32,
+    pub(crate) cinema_contrast: f32,
+    pub(crate) cinema_pulse: f32,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Config {
     pub(crate) bars: Vec<BarConfig>,
@@ -57,6 +83,9 @@ pub(crate) struct Config {
     /// Per monitor-setup profiles (auto-created, auto-restored).
     #[serde(default)]
     pub(crate) profiles: Vec<Profile>,
+    /// User-named setting presets.
+    #[serde(default)]
+    pub(crate) presets: Vec<Preset>,
     /// Persistent mapping USB-port id -> device UUID + info.
     #[serde(default)]
     pub(crate) bar_uuids: HashMap<String, Ident>,
@@ -128,6 +157,7 @@ impl Default for Config {
             autostart: false,
             autostart_sync: false,
             profiles: Vec::new(),
+            presets: Vec::new(),
             bar_uuids: HashMap::new(),
             custom_color: default_custom_color(),
             cinema_color: default_cinema_color(),
@@ -204,6 +234,22 @@ impl Config {
             return;
         }
         self.profile_mut(sig).bars = bars.to_vec();
+    }
+
+    /// Insert a preset or replace the existing one with the same name.
+    /// Presets without a name are ignored.
+    pub(crate) fn upsert_preset(&mut self, preset: Preset) {
+        if preset.name.trim().is_empty() {
+            return;
+        }
+        match self.presets.iter_mut().find(|p| p.name == preset.name) {
+            Some(existing) => *existing = preset,
+            None => self.presets.push(preset),
+        }
+    }
+
+    pub(crate) fn remove_preset(&mut self, name: &str) {
+        self.presets.retain(|p| p.name != name);
     }
 }
 
@@ -328,5 +374,54 @@ mod tests {
     fn config_ignores_unknown_fields() {
         let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200,"future":true}"#;
         assert!(serde_json::from_str::<Config>(json).is_ok());
+    }
+
+    fn preset(name: &str, brightness: u8) -> Preset {
+        Preset { name: name.into(), brightness, ..Default::default() }
+    }
+
+    #[test]
+    fn upsert_preset_inserts_then_replaces() {
+        let mut cfg = Config::default();
+        cfg.upsert_preset(preset("Wohnzimmer", 100));
+        cfg.upsert_preset(preset("Kino", 50));
+        cfg.upsert_preset(preset("Wohnzimmer", 200));
+        assert_eq!(cfg.presets.len(), 2);
+        let w = cfg.presets.iter().find(|p| p.name == "Wohnzimmer").unwrap();
+        assert_eq!(w.brightness, 200);
+    }
+
+    #[test]
+    fn upsert_preset_ignores_blank_name() {
+        let mut cfg = Config::default();
+        cfg.upsert_preset(preset("   ", 100));
+        assert!(cfg.presets.is_empty());
+    }
+
+    #[test]
+    fn remove_preset_drops_only_matching() {
+        let mut cfg = Config::default();
+        cfg.upsert_preset(preset("A", 1));
+        cfg.upsert_preset(preset("B", 2));
+        cfg.remove_preset("A");
+        assert_eq!(cfg.presets.len(), 1);
+        assert_eq!(cfg.presets[0].name, "B");
+    }
+
+    #[test]
+    fn preset_deserializes_partial_json() {
+        // A container-level default lets older/newer presets load with the
+        // remaining fields falling back to their defaults.
+        let p: Preset = serde_json::from_str(r#"{"name":"Nur Name"}"#).unwrap();
+        assert_eq!(p.name, "Nur Name");
+        assert_eq!(p.fps, 0);
+        assert_eq!(p.filter, "");
+    }
+
+    #[test]
+    fn legacy_config_has_no_presets() {
+        let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert!(cfg.presets.is_empty());
     }
 }
