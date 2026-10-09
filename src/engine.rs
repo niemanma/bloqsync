@@ -193,3 +193,40 @@ pub fn spawn(device: Arc<Device>, slot: FrameSlot, cfg: SyncConfig) -> Result<Sy
         handle: Mutex::new(Some(handle)),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identical_frames_are_unchanged() {
+        let a = [[10, 20, 30], [40, 50, 60]];
+        assert!(!changed(&a, &a, 0));
+        assert!(!changed(&a, &a, 5));
+    }
+
+    #[test]
+    fn length_change_is_always_significant() {
+        let a = [[0, 0, 0]];
+        let b = [[0, 0, 0], [0, 0, 0]];
+        assert!(changed(&a, &b, 0));
+        assert!(changed(&a, &b, 255));
+    }
+
+    #[test]
+    fn zero_threshold_detects_any_difference() {
+        assert!(changed(&[[0, 0, 0]], &[[0, 0, 1]], 0));
+    }
+
+    #[test]
+    fn threshold_ignores_small_differences() {
+        assert!(!changed(&[[100, 100, 100]], &[[105, 100, 100]], 5));
+        assert!(!changed(&[[100, 100, 100]], &[[100, 96, 100]], 5));
+    }
+
+    #[test]
+    fn threshold_detects_larger_differences() {
+        assert!(changed(&[[100, 100, 100]], &[[106, 100, 100]], 5));
+        assert!(changed(&[[100, 100, 100]], &[[100, 90, 100]], 5));
+    }
+}
