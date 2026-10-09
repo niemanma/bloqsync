@@ -102,20 +102,38 @@ fn pick(target: &Option<String>) -> Result<Device> {
     Device::open(info)
 }
 
-fn gradient(n: usize) -> Vec<Rgb> {
+fn rainbow(n: usize, offset: f32) -> Vec<Rgb> {
     (0..n)
         .map(|i| {
-            let t = (i as f32 / n.max(1) as f32 * 6.0) % 6.0;
+            let t = ((i as f32 / n.max(1) as f32) + offset) * 6.0 % 6.0;
             let x = (t.fract() * 255.0) as u8;
             let q = 255 - x;
-            let seg = t as usize;
-            match seg {
+            match t as usize {
                 0 => [255, x, 0],
                 1 => [q, 255, 0],
                 2 => [0, 255, x],
                 3 => [0, q, 255],
                 4 => [x, 0, 255],
                 _ => [255, 0, q],
+            }
+        })
+        .collect()
+}
+
+fn gradient(n: usize) -> Vec<Rgb> {
+    rainbow(n, 0.0)
+}
+
+/// Three equal zones (red / green / blue) for orientation tests.
+fn three_zones(n: usize) -> Vec<Rgb> {
+    (0..n)
+        .map(|i| {
+            if i < n / 3 {
+                [255, 0, 0]
+            } else if i < 2 * n / 3 {
+                [0, 255, 0]
+            } else {
+                [0, 0, 255]
             }
         })
         .collect()
@@ -165,18 +183,7 @@ fn main() -> Result<()> {
         }
         Cmd::Pattern => {
             let d = pick(&cli.device)?;
-            let n = d.led_count;
-            let colors: Vec<Rgb> = (0..n)
-                .map(|i| {
-                    if i < n / 3 {
-                        [255, 0, 0]
-                    } else if i < 2 * n / 3 {
-                        [0, 255, 0]
-                    } else {
-                        [0, 0, 255]
-                    }
-                })
-                .collect();
+            let colors = three_zones(d.led_count);
             d.send_colors(&colors)?;
             std::thread::sleep(Duration::from_millis(50));
         }
@@ -186,21 +193,7 @@ fn main() -> Result<()> {
             let start = Instant::now();
             let mut offset = 0f32;
             while start.elapsed() < Duration::from_secs(seconds) {
-                let colors: Vec<Rgb> = (0..n)
-                    .map(|i| {
-                        let t = ((i as f32 / n as f32) + offset) * 6.0 % 6.0;
-                        let x = (t.fract() * 255.0) as u8;
-                        let q = 255 - x;
-                        match t as usize {
-                            0 => [255, x, 0],
-                            1 => [q, 255, 0],
-                            2 => [0, 255, x],
-                            3 => [0, q, 255],
-                            4 => [x, 0, 255],
-                            _ => [255, 0, q],
-                        }
-                    })
-                    .collect();
+                let colors = rainbow(n, offset);
                 d.send_colors(&colors)?;
                 offset += 0.02;
                 std::thread::sleep(Duration::from_millis(8));
@@ -305,20 +298,9 @@ fn main() -> Result<()> {
             println!("fertig");
         }
         Cmd::Calibrate { seconds } => {
-            use bloqsync::protocol::Rgb;
             let d = pick(&cli.device)?;
             let n = d.led_count;
-            let colors: Vec<Rgb> = (0..n)
-                .map(|i| {
-                    if i < n / 3 {
-                        [255, 0, 0]
-                    } else if i < 2 * n / 3 {
-                        [0, 255, 0]
-                    } else {
-                        [0, 0, 255]
-                    }
-                })
-                .collect();
+            let colors = three_zones(n);
             println!(
                 "KALIBRIERUNG: LED-Software 1-{} = ROT, {}-{} = GRÜN, {}-{} = BLAU.",
                 n / 3,
@@ -416,5 +398,66 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rainbow_has_one_color_per_led() {
+        assert!(rainbow(0, 0.0).is_empty());
+        assert_eq!(rainbow(54, 0.0).len(), 54);
+    }
+
+    #[test]
+    fn rainbow_cycles_through_six_hues() {
+        assert_eq!(
+            rainbow(6, 0.0),
+            vec![
+                [255, 0, 0],
+                [255, 255, 0],
+                [0, 255, 0],
+                [0, 255, 255],
+                [0, 0, 255],
+                [255, 0, 255],
+            ]
+        );
+    }
+
+    #[test]
+    fn gradient_is_rainbow_without_offset() {
+        for n in [0usize, 1, 7, 54] {
+            assert_eq!(gradient(n), rainbow(n, 0.0));
+        }
+    }
+
+    #[test]
+    fn offset_shifts_the_hues() {
+        let shifted = rainbow(6, 1.0 / 6.0);
+        let base = rainbow(6, 0.0);
+        assert_eq!(shifted[0], base[1]);
+        assert_eq!(shifted[5], base[0]);
+    }
+
+    #[test]
+    fn three_zones_splits_equally() {
+        assert_eq!(
+            three_zones(9),
+            vec![
+                [255, 0, 0],
+                [255, 0, 0],
+                [255, 0, 0],
+                [0, 255, 0],
+                [0, 255, 0],
+                [0, 255, 0],
+                [0, 0, 255],
+                [0, 0, 255],
+                [0, 0, 255],
+            ]
+        );
+        assert!(three_zones(0).is_empty());
+        assert_eq!(three_zones(54).len(), 54);
+    }
 }
 
