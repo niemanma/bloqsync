@@ -38,24 +38,9 @@ pub fn enumerate() -> Vec<DeviceInfo> {
         let node = entry.file_name().to_string_lossy().to_string(); // hidrawN
         let base = format!("/sys/class/hidraw/{node}");
         let uevent = fs::read_to_string(format!("{base}/device/uevent")).unwrap_or_default();
-        let (mut hid_id, mut hid_name, mut hid_uniq) = (String::new(), String::new(), String::new());
-        for line in uevent.lines() {
-            if let Some(v) = line.strip_prefix("HID_ID=") {
-                hid_id = v.trim().to_string();
-            } else if let Some(v) = line.strip_prefix("HID_NAME=") {
-                hid_name = v.trim().to_string();
-            } else if let Some(v) = line.strip_prefix("HID_UNIQ=") {
-                hid_uniq = v.trim().to_string();
-            }
-        }
+        let (hid_id, hid_name, hid_uniq) = parse_uevent(&uevent);
         // HID_ID = 0003:00001A86:0000FE07  (bus:vendor:product as hex)
-        let parts: Vec<&str> = hid_id.split(':').collect();
-        if parts.len() != 3 {
-            continue;
-        }
-        let vid = u32::from_str_radix(parts[1], 16).unwrap_or(0) as u16;
-        let pid = u32::from_str_radix(parts[2], 16).unwrap_or(0) as u16;
-        if vid != VENDOR_ID || pid != PRODUCT_ID {
+        if parse_hid_id(&hid_id) != Some((VENDOR_ID, PRODUCT_ID)) {
             continue;
         }
 
@@ -70,24 +55,11 @@ pub fn enumerate() -> Vec<DeviceInfo> {
         let real = fs::canonicalize(format!("{base}/device"))
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
-        let iface_seg = real
-            .split('/')
-            .find(|s| s.starts_with("1-") && s.contains(':'))
-            .unwrap_or("");
+        let iface_seg = interface_segment(&real);
         // USB sysfs iface segment is "BUS-PORT:CONFIG.INTERFACE", e.g. "1-2:1.0".
-        let interface = iface_seg
-            .rsplit(':')
-            .next()
-            .and_then(|s| s.split('.').nth(1))
-            .and_then(|s| s.parse::<u8>().ok())
-            .unwrap_or(0);
+        let interface = usb_interface(iface_seg);
         // USB port segment, e.g. "1-2" (dropping the ":1.0" config suffix).
-        let id = iface_seg
-            .split(':')
-            .next()
-            .filter(|s| !s.is_empty())
-            .unwrap_or(&real)
-            .to_string();
+        let id = usb_port_id(iface_seg, &real);
 
         out.push(DeviceInfo {
             path: format!("/dev/{node}"),
@@ -122,7 +94,8 @@ pub fn find_by_identity(identity: &str) -> Option<DeviceInfo> {
     None
 }
 
-pub struct Device {    pub info: DeviceInfo,
+pub struct Device {
+    pub info: DeviceInfo,
     fd: RawFd,
     seq: Seq,
     pub led_count: usize,
@@ -290,4 +263,123 @@ impl Drop for Device {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Extract the `HID_ID`, `HID_NAME` and `HID_UNIQ` values from a sysfs uevent.
+fn parse_uevent(text: &str) -> (String, String, String) {
+    let (mut id, mut name, mut uniq) = (String::new(), String::new(), String::new());
+    for line in text.lines() {
+        if let Some(v) = line.strip_prefix("HID_ID=") {
+            id = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("HID_NAME=") {
+            name = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("HID_UNIQ=") {
+            uniq = v.trim().to_string();
+        }
+    }
+    (id, name, uniq)
+}
+
+/// Parse `HID_ID="0003:00001A86:0000FE07"` (bus:vendor:product, hex) into the
+/// vendor/product id pair.
+fn parse_hid_id(hid_id: &str) -> Option<(u16, u16)> {
+    let mut parts = hid_id.split(':');
+    let _bus = parts.next()?;
+    let vid = u16::from_str_radix(parts.next()?, 16).ok()?;
+    let pid = u16::from_str_radix(parts.next()?, 16).ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((vid, pid))
+}
+
+/// Pick the USB interface segment from a canonical sysfs path, e.g.
+/// `.../usb1/1-2/1-2:1.0/0003:...` -> `1-2:1.0`.
+fn interface_segment(real: &str) -> &str {
+    real.split('/')
+        .find(|s| s.starts_with("1-") && s.contains(':'))
+        .unwrap_or("")
+}
+
+/// Parse the interface number from `"1-2:1.0"` -> `0`.
+fn usb_interface(seg: &str) -> u8 {
+    seg.rsplit(':')
+        .next()
+        .and_then(|s| s.split('.').nth(1))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Parse the USB port id from `"1-2:1.0"` -> `"1-2"`, falling back to the full
+/// canonical path when the segment is unavailable.
+fn usb_port_id(seg: &str, fallback: &str) -> String {
+    seg.split(':')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_encodes_lowercase_pairs() {
+        assert_eq!(hex(&[]), "");
+        assert_eq!(hex(&[0x00, 0x0f, 0xa5, 0xff]), "000fa5ff");
+    }
+
+    #[test]
+    fn parse_uevent_extracts_all_keys() {
+        let text = "DRIVER=hid-generic\nHID_ID=0003:00001A86:0000FE07\nHID_NAME=ROBOBLOQ LIGHT\nHID_UNIQ=0123456789\n";
+        let (id, name, uniq) = parse_uevent(text);
+        assert_eq!(id, "0003:00001A86:0000FE07");
+        assert_eq!(name, "ROBOBLOQ LIGHT");
+        assert_eq!(uniq, "0123456789");
+    }
+
+    #[test]
+    fn parse_uevent_missing_keys_are_empty() {
+        let (id, name, uniq) = parse_uevent("HID_NAME=Only Name\n");
+        assert_eq!(id, "");
+        assert_eq!(name, "Only Name");
+        assert_eq!(uniq, "");
+    }
+
+    #[test]
+    fn parse_hid_id_reads_vendor_and_product() {
+        assert_eq!(parse_hid_id("0003:00001A86:0000FE07"), Some((0x1A86, 0xFE07)));
+        assert_eq!(parse_hid_id("0003:00001a86:0000fe07"), Some((0x1A86, 0xFE07)));
+    }
+
+    #[test]
+    fn parse_hid_id_rejects_malformed_input() {
+        assert_eq!(parse_hid_id(""), None);
+        assert_eq!(parse_hid_id("0003:1A86"), None);
+        assert_eq!(parse_hid_id("0003:1A86:FE07:extra"), None);
+        assert_eq!(parse_hid_id("0003:ZZZZ:FE07"), None);
+    }
+
+    #[test]
+    fn interface_segment_picks_usb_interface_dir() {
+        let path = "/sys/devices/pci0000:00/usb1/1-2/1-2:1.0/0003:1A86:FE07.0014";
+        assert_eq!(interface_segment(path), "1-2:1.0");
+        assert_eq!(interface_segment("/sys/devices/usb1"), "");
+    }
+
+    #[test]
+    fn usb_interface_parses_config_number() {
+        assert_eq!(usb_interface("1-2:1.0"), 0);
+        assert_eq!(usb_interface("1-2:1.1"), 1);
+        assert_eq!(usb_interface(""), 0);
+        assert_eq!(usb_interface("1-2"), 0);
+    }
+
+    #[test]
+    fn usb_port_id_strips_config_suffix() {
+        assert_eq!(usb_port_id("1-2:1.0", "/fallback"), "1-2");
+        assert_eq!(usb_port_id("", "/fallback"), "/fallback");
+        assert_eq!(usb_port_id(":1.0", "/fallback"), "/fallback");
+    }
 }
