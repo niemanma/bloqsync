@@ -321,3 +321,97 @@ impl Analyzer {
         self.smooth
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tone(i: usize, hz: f32, amp: f32) -> f32 {
+        (std::f32::consts::TAU * hz * i as f32 / SAMPLE_RATE as f32).sin() * amp
+    }
+
+    fn feed(a: &mut Analyzer, n: usize, f: impl Fn(usize) -> (f32, f32)) -> Option<Spectrum> {
+        let mut last = None;
+        for i in 0..n {
+            let (l, r) = f(i);
+            if let Some(s) = a.push(l, r) {
+                last = Some(s);
+            }
+        }
+        last
+    }
+
+    #[test]
+    fn first_spectrum_needs_a_full_window() {
+        let mut a = Analyzer::new();
+        for _ in 0..FFT_SIZE - 1 {
+            assert!(a.push(0.0, 0.0).is_none());
+        }
+        assert!(a.push(0.0, 0.0).is_some());
+    }
+
+    #[test]
+    fn spectra_advance_by_one_hop() {
+        let mut a = Analyzer::new();
+        for _ in 0..FFT_SIZE {
+            a.push(0.0, 0.0);
+        }
+        for _ in 0..HOP - 1 {
+            assert!(a.push(0.0, 0.0).is_none());
+        }
+        assert!(a.push(0.0, 0.0).is_some());
+    }
+
+    #[test]
+    fn silence_stays_inactive() {
+        let mut a = Analyzer::new();
+        let s = feed(&mut a, FFT_SIZE, |_| (0.0, 0.0)).unwrap();
+        assert!(!s.active);
+        assert_eq!(s.rms, 0.0);
+        assert_eq!(s.energy, 0.0);
+        assert_eq!(s.bands, [0.0; NBANDS]);
+    }
+
+    #[test]
+    fn loud_tone_is_active_and_bounded() {
+        let mut a = Analyzer::new();
+        let s = feed(&mut a, FFT_SIZE * 2, |i| {
+            let v = tone(i, 1000.0, 0.5);
+            (v, v)
+        })
+        .unwrap();
+        assert!(s.active);
+        assert!(s.energy > 0.0 && s.energy <= 1.0);
+        assert!((-1.0..=1.0).contains(&s.contrast));
+        assert!((-1.0..=1.0).contains(&s.stereo));
+        assert!((0.0..=1.0).contains(&s.flatness));
+        assert!(s.centroid >= 0.0);
+        for b in s.bands {
+            assert!((0.0..=1.0).contains(&b), "band out of range: {b}");
+        }
+    }
+
+    #[test]
+    fn stereo_balance_sign_follows_the_louder_channel() {
+        let mut left = Analyzer::new();
+        let s = feed(&mut left, FFT_SIZE * 2, |i| (tone(i, 1000.0, 0.5), 0.0)).unwrap();
+        assert!(s.stereo > 0.0);
+
+        let mut right = Analyzer::new();
+        let s = feed(&mut right, FFT_SIZE * 2, |i| (0.0, tone(i, 1000.0, 0.5))).unwrap();
+        assert!(s.stereo < 0.0);
+    }
+
+    #[test]
+    fn extreme_input_does_not_panic() {
+        let mut a = Analyzer::new();
+        let s = feed(&mut a, FFT_SIZE * 3, |i| {
+            if i % 2 == 0 {
+                (1.0, -1.0)
+            } else {
+                (-1.0, 1.0)
+            }
+        });
+        assert!(s.is_some());
+    }
+}
