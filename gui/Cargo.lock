@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "bloqsync"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "ashpd",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "bloqsync-gui"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bloqsync",
  "serde",
