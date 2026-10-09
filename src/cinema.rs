@@ -91,3 +91,108 @@ impl Cinema {
         out
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(base: Rgb, master: f32, floor: f32) -> CinemaParams {
+        CinemaParams {
+            base,
+            sensitivity: 1.0,
+            master,
+            floor,
+            onset_gain: 0.0,
+            stereo_amount: 0.0,
+            smooth_secs: 0.2,
+            contrast_gain: 0.0,
+        }
+    }
+
+    fn converge(cinema: &mut Cinema, s: &Spectrum, n: usize, p: &CinemaParams) -> Vec<Rgb> {
+        let mut out = Vec::new();
+        for _ in 0..2000 {
+            out = cinema.render(s, n, p);
+        }
+        out
+    }
+
+    #[test]
+    fn render_returns_requested_led_count() {
+        let mut cinema = Cinema::new();
+        let s = Spectrum::default();
+        assert!(cinema.render(&s, 0, &params([10, 20, 30], 1.0, 0.0)).is_empty());
+        assert_eq!(cinema.render(&s, 7, &params([10, 20, 30], 1.0, 0.0)).len(), 7);
+    }
+
+    #[test]
+    fn base_zero_is_always_black() {
+        let mut cinema = Cinema::new();
+        let mut s = Spectrum::default();
+        s.energy_slow = 1.0;
+        let out = converge(&mut cinema, &s, 4, &params([0, 0, 0], 1.0, 0.5));
+        assert!(out.iter().all(|c| *c == [0, 0, 0]));
+    }
+
+    #[test]
+    fn master_zero_is_always_black() {
+        let mut cinema = Cinema::new();
+        let mut s = Spectrum::default();
+        s.energy_slow = 1.0;
+        let out = converge(&mut cinema, &s, 4, &params([255, 255, 255], 0.0, 0.5));
+        assert!(out.iter().all(|c| *c == [0, 0, 0]));
+    }
+
+    #[test]
+    fn channels_never_exceed_base() {
+        let mut cinema = Cinema::new();
+        let mut s = Spectrum::default();
+        s.energy_slow = 100.0; // over-driven, must clamp
+        let base = [200, 100, 50];
+        for c in converge(&mut cinema, &s, 4, &params(base, 1.0, 0.5)) {
+            for k in 0..3 {
+                assert!(c[k] <= base[k]);
+            }
+        }
+    }
+
+    #[test]
+    fn floor_keeps_light_dimly_on_in_silence() {
+        let mut cinema = Cinema::new();
+        let s = Spectrum::default(); // silent
+        let base = [255, 160, 60];
+        let out = converge(&mut cinema, &s, 3, &params(base, 1.0, 0.5));
+        // target = floor = 0.5 -> roughly half the base colour.
+        assert!(out[0][0] > 100 && out[0][0] < base[0]);
+    }
+
+    #[test]
+    fn zero_floor_in_silence_goes_dark() {
+        let mut cinema = Cinema::new();
+        let s = Spectrum::default();
+        let out = converge(&mut cinema, &s, 3, &params([255, 255, 255], 1.0, 0.0));
+        assert_eq!(out[0], [0, 0, 0]);
+    }
+
+    #[test]
+    fn stereo_off_is_flat() {
+        let mut cinema = Cinema::new();
+        let mut s = Spectrum::default();
+        s.energy_slow = 0.8;
+        s.stereo = 0.9;
+        let out = converge(&mut cinema, &s, 4, &params([255, 160, 60], 1.0, 0.3));
+        assert!(out.iter().all(|c| *c == out[0]));
+    }
+
+    #[test]
+    fn stereo_biases_brightness_left_to_right() {
+        let mut cinema = Cinema::new();
+        let mut s = Spectrum::default();
+        s.energy_slow = 0.8;
+        s.stereo = 1.0;
+        let mut p = params([255, 255, 255], 1.0, 0.3);
+        p.stereo_amount = 1.0;
+        let out = converge(&mut cinema, &s, 5, &p);
+        assert!(out.last().unwrap()[0] >= out.first().unwrap()[0]);
+    }
+}
