@@ -71,37 +71,63 @@ pub fn sample_border(frame: &Frame, layout: &Layout) -> Vec<Rgb> {
     let depth_y = (h / 10).max(1);
 
     let mut out = Vec::with_capacity(layout.total());
-
-    // Left edge, bottom -> top.
-    for i in 0..layout.left {
-        let band_h = (h / layout.left.max(1)).max(1);
-        let y = h.saturating_sub((i + 1) * band_h);
-        let hh = band_h.min(h - y);
-        out.push(avg(frame, 0, y, depth_x, hh));
-    }
-    // Top edge, left -> right.
-    for i in 0..layout.top {
-        let band_w = (w / layout.top.max(1)).max(1);
-        let x = i * band_w;
-        let ww = band_w.min(w - x);
-        out.push(avg(frame, x, 0, ww, depth_y));
-    }
-    // Right edge, top -> bottom.
-    for i in 0..layout.right {
-        let band_h = (h / layout.right.max(1)).max(1);
-        let y = i * band_h;
-        let hh = band_h.min(h - y);
-        out.push(avg(frame, w.saturating_sub(depth_x), y, depth_x, hh));
-    }
-    // Bottom edge, right -> left.
-    for i in 0..layout.bottom {
-        let band_w = (w / layout.bottom.max(1)).max(1);
-        let x = w.saturating_sub((i + 1) * band_w);
-        let ww = band_w.min(w - x);
-        out.push(avg(frame, x, h.saturating_sub(depth_y), ww, depth_y));
-    }
-
+    out.extend(sample_left(frame, layout.left, depth_x));
+    out.extend(sample_top(frame, layout.top, depth_y));
+    out.extend(sample_right(frame, layout.right, depth_x));
+    out.extend(sample_bottom(frame, layout.bottom, depth_y));
     out
+}
+
+/// Left edge, bottom -> top.
+fn sample_left(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+    let h = frame.height;
+    (0..count)
+        .map(|i| {
+            let band_h = (h / count.max(1)).max(1);
+            let y = h.saturating_sub((i + 1) * band_h);
+            let hh = band_h.min(h - y);
+            avg(frame, 0, y, depth, hh)
+        })
+        .collect()
+}
+
+/// Top edge, left -> right.
+fn sample_top(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+    let w = frame.width;
+    (0..count)
+        .map(|i| {
+            let band_w = (w / count.max(1)).max(1);
+            let x = i * band_w;
+            let ww = band_w.min(w - x);
+            avg(frame, x, 0, ww, depth)
+        })
+        .collect()
+}
+
+/// Right edge, top -> bottom.
+fn sample_right(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+    let (w, h) = (frame.width, frame.height);
+    (0..count)
+        .map(|i| {
+            let band_h = (h / count.max(1)).max(1);
+            let y = i * band_h;
+            let hh = band_h.min(h - y);
+            avg(frame, w.saturating_sub(depth), y, depth, hh)
+        })
+        .collect()
+}
+
+/// Bottom edge, right -> left.
+fn sample_bottom(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+    let (w, h) = (frame.width, frame.height);
+    (0..count)
+        .map(|i| {
+            let band_w = (w / count.max(1)).max(1);
+            let x = w.saturating_sub((i + 1) * band_w);
+            let ww = band_w.min(w - x);
+            avg(frame, x, h.saturating_sub(depth), ww, depth)
+        })
+        .collect()
 }
 
 /// Exponential smoothing towards a new frame (avoids flicker).
@@ -117,4 +143,125 @@ pub fn smooth(prev: &[Rgb], next: &[Rgb], alpha: f32) -> Vec<Rgb> {
             ]
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::capture::PixelFormat;
+
+    fn frame_rgb(w: usize, h: usize, px: impl Fn(usize, usize) -> Rgb) -> Frame {
+        let mut data = Vec::with_capacity(w * h * 3);
+        for y in 0..h {
+            for x in 0..w {
+                data.extend_from_slice(&px(x, y));
+            }
+        }
+        Frame {
+            width: w,
+            height: h,
+            stride: w * 3,
+            format: PixelFormat::Rgb,
+            data,
+            seq: 0,
+        }
+    }
+
+    fn uniform(w: usize, h: usize, color: Rgb) -> Frame {
+        frame_rgb(w, h, |_, _| color)
+    }
+
+    #[test]
+    fn layout_total_sums_all_sides() {
+        assert_eq!(Layout { left: 1, top: 2, right: 3, bottom: 4 }.total(), 10);
+        assert_eq!(Layout::default().total(), 54);
+        assert_eq!(Layout { left: 0, top: 0, right: 0, bottom: 0 }.total(), 0);
+    }
+
+    #[test]
+    fn zero_sized_frame_yields_black() {
+        let f = Frame {
+            width: 0,
+            height: 0,
+            stride: 0,
+            format: PixelFormat::Rgb,
+            data: Vec::new(),
+            seq: 0,
+        };
+        let layout = Layout { left: 2, top: 2, right: 2, bottom: 2 };
+        assert_eq!(sample_border(&f, &layout), vec![[0, 0, 0]; 8]);
+    }
+
+    #[test]
+    fn uniform_frame_yields_uniform_border() {
+        let f = uniform(100, 100, [12, 34, 56]);
+        let layout = Layout { left: 5, top: 5, right: 5, bottom: 5 };
+        let cols = sample_border(&f, &layout);
+        assert_eq!(cols.len(), 20);
+        assert!(cols.iter().all(|c| *c == [12, 34, 56]));
+    }
+
+    #[test]
+    fn border_order_is_left_top_right_bottom() {
+        //   A B
+        //   C D
+        let a = [0, 0, 0];
+        let b = [100, 0, 0];
+        let c = [0, 100, 0];
+        let d = [0, 0, 100];
+        let f = frame_rgb(2, 2, |x, y| match (x, y) {
+            (0, 0) => a,
+            (1, 0) => b,
+            (0, 1) => c,
+            _ => d,
+        });
+        let layout = Layout { left: 1, top: 1, right: 1, bottom: 1 };
+        let cols = sample_border(&f, &layout);
+        // left column (A,C), top row (A,B), right column (B,D), bottom row (C,D)
+        assert_eq!(cols, vec![[0, 50, 0], [50, 0, 0], [50, 0, 50], [0, 50, 50]]);
+    }
+
+    #[test]
+    fn side_counts_are_honoured() {
+        let f = uniform(64, 64, [1, 2, 3]);
+        let layout = Layout { left: 3, top: 0, right: 0, bottom: 0 };
+        assert_eq!(sample_border(&f, &layout).len(), 3);
+        let layout = Layout { left: 0, top: 0, right: 4, bottom: 0 };
+        assert_eq!(sample_border(&f, &layout).len(), 4);
+    }
+
+    #[test]
+    fn avg_ignores_empty_region() {
+        // depth 0 is clamped to 1 by callers, but `avg` itself must be safe.
+        assert_eq!(avg(&uniform(4, 4, [9, 9, 9]), 0, 0, 0, 4), [0, 0, 0]);
+        assert_eq!(avg(&uniform(4, 4, [9, 9, 9]), 0, 0, 4, 0), [0, 0, 0]);
+    }
+
+    #[test]
+    fn smooth_alpha_one_returns_next() {
+        let prev = [[10, 20, 30]];
+        let next = [[200, 100, 50]];
+        assert_eq!(smooth(&prev, &next, 1.0), next.to_vec());
+    }
+
+    #[test]
+    fn smooth_alpha_zero_returns_prev() {
+        let prev = [[10, 20, 30]];
+        let next = [[200, 100, 50]];
+        assert_eq!(smooth(&prev, &next, 0.0), prev.to_vec());
+    }
+
+    #[test]
+    fn smooth_missing_prev_uses_next() {
+        let next = [[10, 20, 30], [40, 50, 60]];
+        assert_eq!(smooth(&[], &next, 0.5), next.to_vec());
+    }
+
+    #[test]
+    fn smooth_handles_shorter_prev() {
+        // Second LED has no previous value -> unchanged.
+        let prev = [[0, 0, 0]];
+        let next = [[100, 100, 100], [7, 8, 9]];
+        assert_eq!(smooth(&prev, &next, 1.0), next.to_vec());
+    }
 }
