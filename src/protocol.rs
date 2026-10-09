@@ -171,10 +171,8 @@ pub fn sections_payload(sections: &[Section]) -> Vec<u8> {
     p
 }
 
-/// Build all `setSyncScreen` (SC / 0x80) frames needed to display `colors`,
-/// each guaranteed to fit in one 64-byte report.
-pub fn sc_frames(seq: &Seq, colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Vec<u8>> {
-    let sections = collapse_tol(colors, led_count, tol);
+/// Split sections into 64-byte-safe `setSyncScreen` frames.
+fn encode_screen_frames(seq: &Seq, sections: &[Section]) -> Vec<Vec<u8>> {
     sections
         .chunks(MAX_SECTIONS_PER_FRAME)
         .map(|chunk| {
@@ -182,6 +180,12 @@ pub fn sc_frames(seq: &Seq, colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Ve
             sc_frame(seq.next(), ACT_SET_SYNC_SCREEN, &payload)
         })
         .collect()
+}
+
+/// Build all `setSyncScreen` (SC / 0x80) frames needed to display `colors`,
+/// each guaranteed to fit in one 64-byte report.
+pub fn sc_frames(seq: &Seq, colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Vec<u8>> {
+    encode_screen_frames(seq, &collapse_tol(colors, led_count, tol))
 }
 
 /// Build `setSyncScreen` frames constrained to at most `max_frames` per update
@@ -200,13 +204,7 @@ pub fn sc_frames_fit(
     loop {
         let sections = collapse_tol(colors, led_count, tol.min(255) as u8);
         if sections.len() <= max_sections || tol >= 255 {
-            return sections
-                .chunks(MAX_SECTIONS_PER_FRAME)
-                .map(|chunk| {
-                    let payload = sections_payload(chunk);
-                    sc_frame(seq.next(), ACT_SET_SYNC_SCREEN, &payload)
-                })
-                .collect();
+            return encode_screen_frames(seq, &sections);
         }
         tol += 2;
     }
@@ -234,6 +232,34 @@ pub fn read_device_info(seq: u8) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    fn seq_ids(seq: &Seq, n: usize) -> Vec<u8> {
+        (0..n).map(|_| seq.next()).collect()
+    }
+
+    #[test]
+    fn checksum_empty_is_zero() {
+        assert_eq!(checksum(&[]), 0);
+    }
+
+    #[test]
+    fn checksum_sums_mod_256() {
+        assert_eq!(checksum(&[1, 2, 3]), 6);
+        assert_eq!(checksum(&[255, 1]), 0);
+        assert_eq!(checksum(&[255, 255]), 254);
+        assert_eq!(checksum(&[255; 256]), 0);
+    }
+
+    #[test]
+    fn seq_starts_at_two_and_skips_zero_and_255() {
+        let seq = Seq::new();
+        let seen = seq_ids(&seq, 300);
+        assert_eq!(seen[0], 2);
+        assert!(seen.iter().all(|&v| v != 0 && v != 255));
+        // 2..=254 is 253 values, then it wraps back to 1.
+        assert_eq!(seen[253], 1);
+        assert_eq!(seen[254], 2);
+    }
+
     #[test]
     fn golden_rb_frames() {
         // Matches the app's vectors (offset by the id counter).
@@ -242,14 +268,160 @@ mod tests {
     }
 
     #[test]
+    fn rb_frame_layout_and_checksum() {
+        let f = rb_frame(0x10, 0x42, &[1, 2, 3]);
+        assert_eq!(&f[0..2], b"RB");
+        assert_eq!(f[2] as usize, RB_OVERHEAD + 3);
+        assert_eq!(f[3], 0x10);
+        assert_eq!(f[4], 0x42);
+        assert_eq!(&f[5..8], &[1, 2, 3]);
+        assert_eq!(f[f.len() - 1], checksum(&f[..f.len() - 1]));
+    }
+
+    #[test]
+    fn rb_frame_accepts_max_payload() {
+        let payload = [0u8; 255 - RB_OVERHEAD];
+        let f = rb_frame(1, 0x80, &payload);
+        assert_eq!(f.len(), 255);
+        assert_eq!(f[2], 255);
+        assert_eq!(f[f.len() - 1], checksum(&f[..f.len() - 1]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn rb_frame_rejects_overflow() {
+        rb_frame(1, 0x80, &[0u8; 255 - RB_OVERHEAD + 1]);
+    }
+
+    #[test]
     fn golden_sc_single_green() {
         let f = sc_frame(0x02, ACT_SET_SYNC_SCREEN, &[1, 0, 255, 0, 254]);
         // 53 43 00 0C 02 80 01 00 FF 00 FE 27
         assert_eq!(f.len(), 12);
-        assert_eq!(f[0], b'S');
-        assert_eq!(f[1], b'C');
+        assert_eq!(&f[0..2], b"SC");
         assert_eq!((f[2] as u16) << 8 | f[3] as u16, 12);
+        assert_eq!(f[4], 0x02);
+        assert_eq!(f[5], ACT_SET_SYNC_SCREEN);
         assert_eq!(f[f.len() - 1], checksum(&f[..f.len() - 1]));
+    }
+
+    #[test]
+    fn sc_frame_uses_big_endian_length() {
+        // 300-byte payload forces a >255 total, exercising the high length byte.
+        let f = sc_frame(1, ACT_SET_SYNC_SCREEN, &[0u8; 300]);
+        let total = SC_OVERHEAD + 300;
+        assert_eq!(f[2] as usize, total >> 8);
+        assert_eq!(f[3] as usize, total & 0xff);
+        assert_eq!(f.len(), total);
+    }
+
+    #[test]
+    fn collapse_blanks_trailing_leds() {
+        let cols = [[10, 20, 30]; 3];
+        let s = collapse(&cols, 5);
+        assert_eq!(
+            s,
+            vec![
+                Section { start: 1, end: 3, color: [10, 20, 30] },
+                Section { start: 4, end: 5, color: BLACK },
+            ]
+        );
+    }
+
+    #[test]
+    fn collapse_handles_empty_input() {
+        assert_eq!(collapse(&[], 0), vec![]);
+        assert_eq!(collapse(&[], 4), vec![Section { start: 1, end: 4, color: BLACK }]);
+    }
+
+    #[test]
+    fn collapse_merges_identical_runs() {
+        let cols = [[1, 1, 1], [1, 1, 1], [9, 9, 9], [1, 1, 1]];
+        let s = collapse(&cols, 4);
+        let spans: Vec<(u8, u8)> = s.iter().map(|s| (s.start, s.end)).collect();
+        assert_eq!(spans, vec![(1, 2), (3, 3), (4, 4)]);
+        assert!(s.iter().all(|sec| sec.color != BLACK));
+    }
+
+    #[test]
+    fn collapse_truncates_beyond_max_leds() {
+        let cols = vec![[1, 2, 3]; MAX_LEDS + 10];
+        let s = collapse(&cols, MAX_LEDS + 10);
+        assert_eq!(s.first().unwrap().start, 1);
+        assert_eq!(s.last().unwrap().end as usize, MAX_LEDS);
+    }
+
+    #[test]
+    fn collapse_tol_zero_keeps_exact_colors() {
+        let cols = [[100, 100, 100], [110, 100, 100], [200, 200, 200]];
+        assert_eq!(collapse_tol(&cols, 3, 0).len(), 3);
+    }
+
+    #[test]
+    fn collapse_tol_merges_within_threshold() {
+        let cols = [[100, 100, 100], [110, 100, 100], [200, 200, 200]];
+        let s = collapse_tol(&cols, 3, 10);
+        let spans: Vec<(u8, u8)> = s.iter().map(|s| (s.start, s.end)).collect();
+        assert_eq!(spans, vec![(1, 2), (3, 3)]);
+        assert_eq!(s[0].color, [100, 100, 100]);
+    }
+
+    #[test]
+    fn collapse_tol_compares_against_run_anchor() {
+        // Adjacent diffs are within tolerance but the run anchor is far from
+        // the third LED, which must therefore start a new section.
+        let cols = [[0, 0, 0], [10, 0, 0], [21, 0, 0]];
+        assert_eq!(collapse_tol(&cols, 3, 10).len(), 2);
+    }
+
+    #[test]
+    fn sections_payload_is_five_bytes_each() {
+        let s = vec![
+            Section { start: 1, end: 2, color: [4, 5, 6] },
+            Section { start: 3, end: 3, color: [7, 8, 9] },
+        ];
+        assert_eq!(sections_payload(&s), vec![1, 4, 5, 6, 2, 3, 7, 8, 9, 3]);
+        assert_eq!(sections_payload(&s).len(), s.len() * SECTION_SIZE);
+    }
+
+    #[test]
+    fn sc_frames_chunk_into_single_reports() {
+        let seq = Seq::new();
+        let cols: Vec<Rgb> = (0..23).map(|i| [i as u8, 0, 0]).collect();
+        let frames = sc_frames(&seq, &cols, 23, 0);
+        assert_eq!(frames.len(), 23usize.div_ceil(MAX_SECTIONS_PER_FRAME));
+        for f in &frames {
+            assert!(f.len() <= REPORT_SIZE, "frame {} > {}", f.len(), REPORT_SIZE);
+            assert_eq!(&f[0..2], b"SC");
+        }
+    }
+
+    #[test]
+    fn sc_frames_fit_respects_budget() {
+        let seq = Seq::new();
+        let cols: Vec<Rgb> = (0..54).map(|i| [i as u8, (i * 2) as u8, (i * 3) as u8]).collect();
+        assert!(sc_frames_fit(&seq, &cols, 54, 1).len() <= 1);
+        assert!(sc_frames_fit(&seq, &cols, 54, 5).len() <= 5);
+        // Budget 0 behaves like 1 (never zero frames).
+        assert_eq!(sc_frames_fit(&seq, &cols, 54, 0).len(), 1);
+    }
+
+    #[test]
+    fn sc_frames_fit_can_always_reach_one_frame() {
+        let seq = Seq::new();
+        let cols: Vec<Rgb> = (0..MAX_LEDS as u8).map(|i| [i, 255 - i, 128]).collect();
+        assert_eq!(sc_frames_fit(&seq, &cols, MAX_LEDS, 1).len(), 1);
+    }
+
+    #[test]
+    fn command_helpers_wrap_protocol_frames() {
+        assert_eq!(
+            persistent_color(1, [1, 2, 3]),
+            rb_frame(1, ACT_SET_SECTION_LED, &[1, 1, 2, 3, 254])
+        );
+        assert_eq!(set_brightness(2, 200), rb_frame(2, ACT_SET_BRIGHTNESS, &[200]));
+        assert_eq!(turn_off(3), rb_frame(3, ACT_TURN_OFF_LIGHT, &[]));
+        assert_eq!(read_device_info(4), rb_frame(4, ACT_READ_DEVICE_INFO, &[]));
     }
 
     #[test]
