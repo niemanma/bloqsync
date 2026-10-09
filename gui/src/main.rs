@@ -210,6 +210,46 @@ fn stop_all_inner(state: &AppState) {
     }
 }
 
+/// Sync parameters shared by every bar of one update; grouped so the numerous
+/// `Config` fields are mapped to engine arguments in exactly one place.
+struct BarSettings {
+    fps: u32,
+    smooth: f32,
+    layout: Layout,
+    brightness: Option<u8>,
+    filter: FilterKind,
+    filter_strength: u8,
+    max_frames: usize,
+}
+
+impl BarSettings {
+    fn from_config(cfg: &Config) -> Self {
+        BarSettings {
+            fps: cfg.fps,
+            smooth: cfg.smooth,
+            layout: cfg.layout(),
+            brightness: Some(cfg.brightness),
+            filter: parse_filter(Some(&cfg.filter)),
+            filter_strength: cfg.filter_strength,
+            max_frames: cfg.max_frames as usize,
+        }
+    }
+}
+
+fn parse_filter(name: Option<&str>) -> FilterKind {
+    match name {
+        Some("deadband") => FilterKind::Deadband,
+        Some("quantize") => FilterKind::Quantize,
+        Some("quantize_smooth") => FilterKind::QuantizeSmooth,
+        Some("smooth") => FilterKind::Smooth,
+        Some("median3") => FilterKind::Median3,
+        Some("median5") => FilterKind::Median5,
+        Some("mean4") => FilterKind::Mean4,
+        Some("test") => FilterKind::Test,
+        _ => FilterKind::None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 fn start_bar(
@@ -230,34 +270,24 @@ fn start_bar(
 ) -> Result<(), String> {
     cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
-    start_bar_inner(
-        &state,
-        &bar_path,
-        stream_index,
+    let settings = BarSettings {
         fps,
         smooth,
-        reverse,
-        Layout { left, top, right, bottom },
+        layout: Layout { left, top, right, bottom },
         brightness,
-        filter.as_deref(),
-        filter_strength.unwrap_or(8),
-        max_frames.unwrap_or(0),
-    )
+        filter: parse_filter(filter.as_deref()),
+        filter_strength: filter_strength.unwrap_or(8),
+        max_frames: max_frames.unwrap_or(0),
+    };
+    start_bar_inner(&state, &bar_path, stream_index, reverse, &settings)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn start_bar_inner(
     state: &AppState,
     bar_path: &str,
     stream_index: usize,
-    fps: u32,
-    smooth: f32,
     reverse: bool,
-    layout: Layout,
-    brightness: Option<u8>,
-    filter: Option<&str>,
-    filter_strength: u8,
-    max_frames: usize,
+    settings: &BarSettings,
 ) -> Result<(), String> {
     let cap = state
         .capture
@@ -287,28 +317,18 @@ fn start_bar_inner(
         },
     );
     persist_identities(state);
-    if let Some(b) = brightness {
+    if let Some(b) = settings.brightness {
         let _ = device.set_brightness(b);
     }
 
     let cfg = SyncConfig {
-        fps,
-        smoothing: smooth,
+        fps: settings.fps,
+        smoothing: settings.smooth,
         reverse,
-        filter: match filter {
-            Some("deadband") => FilterKind::Deadband,
-            Some("quantize") => FilterKind::Quantize,
-            Some("quantize_smooth") => FilterKind::QuantizeSmooth,
-            Some("smooth") => FilterKind::Smooth,
-            Some("median3") => FilterKind::Median3,
-            Some("median5") => FilterKind::Median5,
-            Some("mean4") => FilterKind::Mean4,
-            Some("test") => FilterKind::Test,
-            _ => FilterKind::None,
-        },
-        filter_strength,
-        max_frames,
-        layout,
+        filter: settings.filter,
+        filter_strength: settings.filter_strength,
+        max_frames: settings.max_frames,
+        layout: settings.layout,
         ..Default::default()
     };
     let handle = spawn(device.clone(), slot, cfg).map_err(|e| e.to_string())?;
@@ -720,6 +740,15 @@ fn persist_identities(state: &AppState) {
 }
 
 impl Config {
+    fn layout(&self) -> Layout {
+        Layout {
+            left: self.left,
+            top: self.top,
+            right: self.right,
+            bottom: self.bottom,
+        }
+    }
+
     fn active_profile(&self, sig: &str) -> Option<&Profile> {
         if sig.is_empty() {
             return None;
@@ -876,25 +905,9 @@ fn autostart_run_inner(state: &AppState) -> Result<(), String> {
     log(&format!("autostart: setup={sig} bars={}", bars.len()));
     // Ensure capture is open (uses profile/top-level restore token).
     open_capture_with(state, token)?;
+    let settings = BarSettings::from_config(&cfg);
     for b in &bars {
-        let _ = start_bar_inner(
-            state,
-            &b.bar_path,
-            b.stream_index,
-            cfg.fps,
-            cfg.smooth,
-            b.reverse,
-            Layout {
-                left: cfg.left,
-                top: cfg.top,
-                right: cfg.right,
-                bottom: cfg.bottom,
-            },
-            Some(cfg.brightness),
-            Some(&cfg.filter),
-            cfg.filter_strength,
-            cfg.max_frames as usize,
-        );
+        let _ = start_bar_inner(state, &b.bar_path, b.stream_index, b.reverse, &settings);
     }
     Ok(())
 }
@@ -1006,6 +1019,7 @@ fn main() {
                         continue;
                     }
                 }
+                let settings = BarSettings::from_config(&cfg);
                 for b in &prof.bars {
                     let need = {
                         let bars = state.bars.lock().unwrap();
@@ -1019,19 +1033,8 @@ fn main() {
                             &state,
                             &b.bar_path,
                             b.stream_index,
-                            cfg.fps,
-                            cfg.smooth,
                             b.reverse,
-                            Layout {
-                                left: cfg.left,
-                                top: cfg.top,
-                                right: cfg.right,
-                                bottom: cfg.bottom,
-                            },
-                            Some(cfg.brightness),
-                            Some(&cfg.filter),
-                            cfg.filter_strength,
-                            cfg.max_frames as usize,
+                            &settings,
                         ) {
                             Ok(()) => log(&format!("bloqsync: watchdog started {}", b.bar_path)),
                             Err(e) => log(&format!("bloqsync: watchdog {}: {e}", b.bar_path)),
@@ -1043,4 +1046,145 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running bloqsync");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bar(path: &str, stream: usize, reverse: bool) -> BarConfig {
+        BarConfig { bar_path: path.into(), stream_index: stream, reverse }
+    }
+
+    #[test]
+    fn parse_filter_maps_known_names() {
+        assert_eq!(parse_filter(Some("deadband")), FilterKind::Deadband);
+        assert_eq!(parse_filter(Some("quantize")), FilterKind::Quantize);
+        assert_eq!(parse_filter(Some("quantize_smooth")), FilterKind::QuantizeSmooth);
+        assert_eq!(parse_filter(Some("smooth")), FilterKind::Smooth);
+        assert_eq!(parse_filter(Some("median3")), FilterKind::Median3);
+        assert_eq!(parse_filter(Some("median5")), FilterKind::Median5);
+        assert_eq!(parse_filter(Some("mean4")), FilterKind::Mean4);
+        assert_eq!(parse_filter(Some("test")), FilterKind::Test);
+    }
+
+    #[test]
+    fn parse_filter_falls_back_to_none() {
+        assert_eq!(parse_filter(None), FilterKind::None);
+        assert_eq!(parse_filter(Some("nonsense")), FilterKind::None);
+    }
+
+    #[test]
+    fn layout_reflects_config_fields() {
+        let mut cfg = Config::default();
+        (cfg.left, cfg.top, cfg.right, cfg.bottom) = (1, 2, 3, 4);
+        let l = cfg.layout();
+        assert_eq!((l.left, l.top, l.right, l.bottom), (1, 2, 3, 4));
+    }
+
+    #[test]
+    fn active_profile_requires_signature() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bar("SIG", bar("1-2", 0, false));
+        assert!(cfg.active_profile("SIG").is_some());
+        assert!(cfg.active_profile("").is_none());
+        assert!(cfg.active_profile("OTHER").is_none());
+    }
+
+    #[test]
+    fn profile_mut_creates_only_once() {
+        let mut cfg = Config::default();
+        cfg.profile_mut("S");
+        cfg.profile_mut("S");
+        assert_eq!(cfg.profiles.len(), 1);
+    }
+
+    #[test]
+    fn upsert_profile_token_ignores_empty_signature() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_token("", "tok");
+        assert!(cfg.profiles.is_empty());
+        cfg.upsert_profile_token("S", "tok");
+        assert_eq!(cfg.active_profile("S").unwrap().restore_token.as_deref(), Some("tok"));
+    }
+
+    #[test]
+    fn upsert_profile_bar_replaces_same_bar() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bar("S", bar("p", 1, false));
+        cfg.upsert_profile_bar("S", bar("p", 2, true));
+        let p = cfg.active_profile("S").unwrap();
+        assert_eq!(p.bars.len(), 1);
+        assert_eq!(p.bars[0].stream_index, 2);
+        assert!(p.bars[0].reverse);
+    }
+
+    #[test]
+    fn upsert_profile_bars_replaces_whole_list() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bars("S", &[bar("a", 0, false), bar("b", 1, false)]);
+        cfg.upsert_profile_bars("S", &[bar("c", 2, true)]);
+        let bars = &cfg.active_profile("S").unwrap().bars;
+        assert_eq!(bars.len(), 1);
+        assert_eq!(bars[0].bar_path, "c");
+        assert_eq!(bars[0].stream_index, 2);
+        assert!(bars[0].reverse);
+    }
+
+    #[test]
+    fn persist_uuids_skips_empty_uuids() {
+        let mut cfg = Config::default();
+        let mut cache = HashMap::new();
+        cache.insert("1-2".to_string(), Ident { uuid: "abc".into(), leds: 54, firmware: "1.9.4".into() });
+        cache.insert("1-3".to_string(), Ident::default());
+        cfg.persist_uuids(&cache);
+        assert!(cfg.bar_uuids.contains_key("1-2"));
+        assert!(!cfg.bar_uuids.contains_key("1-3"));
+    }
+
+    #[test]
+    fn bar_settings_maps_config() {
+        let mut cfg = Config::default();
+        (cfg.fps, cfg.smooth) = (30, 0.4);
+        (cfg.left, cfg.top, cfg.right, cfg.bottom) = (1, 2, 3, 4);
+        cfg.brightness = 180;
+        cfg.filter = "median3".into();
+        cfg.filter_strength = 12;
+        cfg.max_frames = 3;
+
+        let s = BarSettings::from_config(&cfg);
+        assert_eq!(s.fps, 30);
+        assert_eq!(s.smooth, 0.4);
+        assert_eq!((s.layout.left, s.layout.top, s.layout.right, s.layout.bottom), (1, 2, 3, 4));
+        assert_eq!(s.brightness, Some(180));
+        assert_eq!(s.filter, FilterKind::Median3);
+        assert_eq!(s.filter_strength, 12);
+        assert_eq!(s.max_frames, 3);
+    }
+
+    #[test]
+    fn legacy_config_deserializes_with_defaults() {
+        // Only the fields written by early versions; everything newer must
+        // fall back to its default so old config files keep loading.
+        let json = r#"{"bars":[],"fps":30,"smooth":0.5,"left":1,"top":2,"right":3,"bottom":4,"brightness":180}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.fps, 30);
+        assert_eq!(cfg.filter, "none");
+        assert_eq!(cfg.filter_strength, 8);
+        assert_eq!(cfg.max_frames, 0);
+        assert_eq!(cfg.custom_color, "#ff8800");
+        assert_eq!(cfg.cinema_color, "#5a2882");
+        assert!(!cfg.autostart);
+        assert!(!cfg.autostart_sync);
+        assert!(cfg.profiles.is_empty());
+        assert!(cfg.bar_uuids.is_empty());
+        assert_eq!(cfg.cinema_contrast, 1.0);
+        assert_eq!(cfg.cinema_pulse, 0.0);
+    }
+
+    #[test]
+    fn config_ignores_unknown_fields() {
+        let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200,"future":true}"#;
+        assert!(serde_json::from_str::<Config>(json).is_ok());
+    }
 }
