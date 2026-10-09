@@ -6,3 +6,7 @@
 # editor / OS
 *~
 .DS_Store
+
+# Local AI/session documentation (never push)
+AGENTS.md
+SESSION.md
