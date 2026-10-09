@@ -1,0 +1,332 @@
+//! Persistent configuration: types, defaults and JSON persistence.
+//!
+//! The schema is append-only for compatibility: every field added after the
+//! first release carries `#[serde(default)]`, so old config files keep loading.
+
+use bloqsync::sampling::Layout;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+/// Stable device identity cached per USB port.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Ident {
+    pub(crate) uuid: String,
+    pub(crate) leds: usize,
+    pub(crate) firmware: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+pub(crate) struct BarConfig {
+    pub(crate) bar_path: String,
+    pub(crate) stream_index: usize,
+    pub(crate) reverse: bool,
+}
+
+/// A saved mapping for one monitor setup (identified by `signature`).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+pub(crate) struct Profile {
+    pub(crate) signature: String,
+    #[serde(default)]
+    pub(crate) restore_token: Option<String>,
+    #[serde(default)]
+    pub(crate) bars: Vec<BarConfig>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct Config {
+    pub(crate) bars: Vec<BarConfig>,
+    pub(crate) fps: u32,
+    pub(crate) smooth: f32,
+    pub(crate) left: usize,
+    pub(crate) top: usize,
+    pub(crate) right: usize,
+    pub(crate) bottom: usize,
+    pub(crate) brightness: u8,
+    #[serde(default = "default_filter")]
+    pub(crate) filter: String,
+    #[serde(default = "default_filter_strength")]
+    pub(crate) filter_strength: u8,
+    #[serde(default = "default_max_frames")]
+    pub(crate) max_frames: u32,
+    #[serde(default)]
+    pub(crate) restore_token: Option<String>,
+    #[serde(default)]
+    pub(crate) autostart: bool,
+    #[serde(default)]
+    pub(crate) autostart_sync: bool,
+    /// Per monitor-setup profiles (auto-created, auto-restored).
+    #[serde(default)]
+    pub(crate) profiles: Vec<Profile>,
+    /// Persistent mapping USB-port id -> device UUID + info.
+    #[serde(default)]
+    pub(crate) bar_uuids: HashMap<String, Ident>,
+    #[serde(default = "default_custom_color")]
+    pub(crate) custom_color: String,
+    #[serde(default = "default_cinema_color")]
+    pub(crate) cinema_color: String,
+    #[serde(default = "default_cin_sens")]
+    pub(crate) cinema_sensitivity: f32,
+    #[serde(default = "default_cin_bri")]
+    pub(crate) cinema_brightness: f32,
+    #[serde(default = "default_cin_floor")]
+    pub(crate) cinema_floor: f32,
+    #[serde(default = "default_cin_smooth")]
+    pub(crate) cinema_smooth: f32,
+    #[serde(default = "default_cin_contrast")]
+    pub(crate) cinema_contrast: f32,
+    #[serde(default)]
+    pub(crate) cinema_pulse: f32,
+}
+
+fn default_custom_color() -> String {
+    "#ff8800".to_string()
+}
+fn default_cinema_color() -> String {
+    "#5a2882".to_string()
+}
+fn default_cin_sens() -> f32 {
+    1.0
+}
+fn default_cin_bri() -> f32 {
+    0.7
+}
+fn default_cin_floor() -> f32 {
+    0.35
+}
+fn default_cin_smooth() -> f32 {
+    0.6
+}
+fn default_cin_contrast() -> f32 {
+    1.0
+}
+
+fn default_filter() -> String {
+    "none".to_string()
+}
+fn default_filter_strength() -> u8 {
+    8
+}
+fn default_max_frames() -> u32 {
+    0
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            bars: Vec::new(),
+            fps: 24,
+            smooth: 0.22,
+            left: 18,
+            top: 18,
+            right: 18,
+            bottom: 0,
+            brightness: 200,
+            filter: default_filter(),
+            filter_strength: 8,
+            max_frames: 0,
+            restore_token: None,
+            autostart: false,
+            autostart_sync: false,
+            profiles: Vec::new(),
+            bar_uuids: HashMap::new(),
+            custom_color: default_custom_color(),
+            cinema_color: default_cinema_color(),
+            cinema_sensitivity: 1.0,
+            cinema_brightness: 0.7,
+            cinema_floor: 0.35,
+            cinema_smooth: 0.6,
+            cinema_contrast: 1.0,
+            cinema_pulse: 0.0,
+        }
+    }
+}
+
+impl Config {
+    pub(crate) fn persist_uuids(&mut self, cache: &HashMap<String, Ident>) {
+        for (id, ident) in cache {
+            if !ident.uuid.is_empty() {
+                self.bar_uuids.insert(id.clone(), ident.clone());
+            }
+        }
+    }
+
+    pub(crate) fn layout(&self) -> Layout {
+        Layout {
+            left: self.left,
+            top: self.top,
+            right: self.right,
+            bottom: self.bottom,
+        }
+    }
+
+    pub(crate) fn active_profile(&self, sig: &str) -> Option<&Profile> {
+        if sig.is_empty() {
+            return None;
+        }
+        self.profiles.iter().find(|p| p.signature == sig)
+    }
+
+    pub(crate) fn profile_mut(&mut self, sig: &str) -> &mut Profile {
+        if !self.profiles.iter().any(|p| p.signature == sig) {
+            self.profiles.push(Profile {
+                signature: sig.to_string(),
+                restore_token: None,
+                bars: Vec::new(),
+            });
+        }
+        self.profiles
+            .iter_mut()
+            .find(|p| p.signature == sig)
+            .unwrap()
+    }
+
+    pub(crate) fn upsert_profile_token(&mut self, sig: &str, token: &str) {
+        if sig.is_empty() {
+            return;
+        }
+        self.profile_mut(sig).restore_token = Some(token.to_string());
+    }
+
+    pub(crate) fn upsert_profile_bar(&mut self, sig: &str, bar: BarConfig) {
+        if sig.is_empty() {
+            return;
+        }
+        let p = self.profile_mut(sig);
+        if let Some(b) = p.bars.iter_mut().find(|b| b.bar_path == bar.bar_path) {
+            *b = bar;
+        } else {
+            p.bars.push(bar);
+        }
+    }
+
+    pub(crate) fn upsert_profile_bars(&mut self, sig: &str, bars: &[BarConfig]) {
+        if sig.is_empty() {
+            return;
+        }
+        self.profile_mut(sig).bars = bars.to_vec();
+    }
+}
+
+fn config_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+    PathBuf::from(home).join(".config/bloqsync/config.json")
+}
+
+pub(crate) fn read_config() -> Config {
+    std::fs::read_to_string(config_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn write_config(cfg: &Config) {
+    if let Some(dir) = config_path().parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(s) = serde_json::to_string_pretty(cfg) {
+        let _ = std::fs::write(config_path(), s);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bar(path: &str, stream: usize, reverse: bool) -> BarConfig {
+        BarConfig { bar_path: path.into(), stream_index: stream, reverse }
+    }
+
+    #[test]
+    fn layout_reflects_config_fields() {
+        let mut cfg = Config::default();
+        (cfg.left, cfg.top, cfg.right, cfg.bottom) = (1, 2, 3, 4);
+        let l = cfg.layout();
+        assert_eq!((l.left, l.top, l.right, l.bottom), (1, 2, 3, 4));
+    }
+
+    #[test]
+    fn active_profile_requires_signature() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bar("SIG", bar("1-2", 0, false));
+        assert!(cfg.active_profile("SIG").is_some());
+        assert!(cfg.active_profile("").is_none());
+        assert!(cfg.active_profile("OTHER").is_none());
+    }
+
+    #[test]
+    fn profile_mut_creates_only_once() {
+        let mut cfg = Config::default();
+        cfg.profile_mut("S");
+        cfg.profile_mut("S");
+        assert_eq!(cfg.profiles.len(), 1);
+    }
+
+    #[test]
+    fn upsert_profile_token_ignores_empty_signature() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_token("", "tok");
+        assert!(cfg.profiles.is_empty());
+        cfg.upsert_profile_token("S", "tok");
+        assert_eq!(cfg.active_profile("S").unwrap().restore_token.as_deref(), Some("tok"));
+    }
+
+    #[test]
+    fn upsert_profile_bar_replaces_same_bar() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bar("S", bar("p", 1, false));
+        cfg.upsert_profile_bar("S", bar("p", 2, true));
+        let p = cfg.active_profile("S").unwrap();
+        assert_eq!(p.bars.len(), 1);
+        assert_eq!(p.bars[0].stream_index, 2);
+        assert!(p.bars[0].reverse);
+    }
+
+    #[test]
+    fn upsert_profile_bars_replaces_whole_list() {
+        let mut cfg = Config::default();
+        cfg.upsert_profile_bars("S", &[bar("a", 0, false), bar("b", 1, false)]);
+        cfg.upsert_profile_bars("S", &[bar("c", 2, true)]);
+        let bars = &cfg.active_profile("S").unwrap().bars;
+        assert_eq!(bars.len(), 1);
+        assert_eq!(bars[0].bar_path, "c");
+        assert_eq!(bars[0].stream_index, 2);
+        assert!(bars[0].reverse);
+    }
+
+    #[test]
+    fn persist_uuids_skips_empty_uuids() {
+        let mut cfg = Config::default();
+        let mut cache = HashMap::new();
+        cache.insert("1-2".to_string(), Ident { uuid: "abc".into(), leds: 54, firmware: "1.9.4".into() });
+        cache.insert("1-3".to_string(), Ident::default());
+        cfg.persist_uuids(&cache);
+        assert!(cfg.bar_uuids.contains_key("1-2"));
+        assert!(!cfg.bar_uuids.contains_key("1-3"));
+    }
+
+    #[test]
+    fn legacy_config_deserializes_with_defaults() {
+        // Only the fields written by early versions; everything newer must
+        // fall back to its default so old config files keep loading.
+        let json = r#"{"bars":[],"fps":30,"smooth":0.5,"left":1,"top":2,"right":3,"bottom":4,"brightness":180}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.fps, 30);
+        assert_eq!(cfg.filter, "none");
+        assert_eq!(cfg.filter_strength, 8);
+        assert_eq!(cfg.max_frames, 0);
+        assert_eq!(cfg.custom_color, "#ff8800");
+        assert_eq!(cfg.cinema_color, "#5a2882");
+        assert!(!cfg.autostart);
+        assert!(!cfg.autostart_sync);
+        assert!(cfg.profiles.is_empty());
+        assert!(cfg.bar_uuids.is_empty());
+        assert_eq!(cfg.cinema_contrast, 1.0);
+        assert_eq!(cfg.cinema_pulse, 0.0);
+    }
+
+    #[test]
+    fn config_ignores_unknown_fields() {
+        let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200,"future":true}"#;
+        assert!(serde_json::from_str::<Config>(json).is_ok());
+    }
+}
