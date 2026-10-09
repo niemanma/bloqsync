@@ -7,107 +7,233 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>bloqsync</h1>
-    <span id="status-dot" class="dot off"></span>
-    <span id="status-text" class="muted"></span>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">bloqsync</span>
+    </div>
+    <div class="topbar-actions">
+      <div id="status" class="status-pill" title="Aktueller Zustand">
+        <span id="status-dot" class="dot off"></span>
+        <span id="status-text">lädt …</span>
+      </div>
+      <button id="expert-toggle" class="icon-btn" type="button" aria-pressed="false"
+              data-tip="Expertenmodus: zeigt Feinjustierung, Rohdaten und die Legacy-Ansicht.">⚙</button>
+    </div>
   </header>
 
-  <main>
-    <section class="card">
-      <h2>1 · Aufnahme (ScreenCast)</h2>
-      <div class="row">
-        <button id="open-capture" class="primary">Monitore erfassen</button>
-        <button id="close-capture">Aufnahme stoppen</button>
-      </div>
-      <div id="streams"><p class="muted">Noch keine Aufnahme.</p></div>
-    </section>
+  <div class="layout">
+    <nav class="segmented" id="mode-tabs" role="tablist" aria-label="Betriebsmodus">
+      <button class="seg is-active" data-mode="screen" role="tab" type="button">Bildschirm</button>
+      <button class="seg" data-mode="cinema" role="tab" type="button">Kino</button>
+      <button class="seg" data-mode="color" role="tab" type="button">Farbe</button>
+    </nav>
 
-    <section class="card">
-      <h2>2 · Globale Einstellungen</h2>
-      <div class="grid">
-        <label>FPS <input type="range" id="fps" min="10" max="60" value="24" /><output id="fps-out">24</output></label>
-        <label>Glättung (0=träge, 1=reaktiv) <input type="range" id="smooth" min="0" max="100" value="22" /><output id="smooth-out">0.22</output></label>
-        <label>Helligkeit <input type="range" id="brightness" min="0" max="255" value="200" /><output id="brightness-out">200</output></label>
-      </div>
-      <div class="grid zones">
-        <label>Links <input type="number" id="z-left" value="18" min="0" max="254" /></label>
-        <label>Oben <input type="number" id="z-top" value="18" min="0" max="254" /></label>
-        <label>Rechts <input type="number" id="z-right" value="18" min="0" max="254" /></label>
-        <label>Unten <input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
-      </div>
+    <main>
+      <!-- ── Bildschirm ─────────────────────────────────────────── -->
+      <section id="panel-screen" class="panel">
+        <article class="card">
+          <div class="card-head">
+            <h2>Bildschirm-Synchronisation</h2>
+            <span class="hint" data-tip="Die Leisten übernehmen die Farben an den Rändern deiner Monitore.">?</span>
+          </div>
 
-      <div class="grid zones">
-        <label>Flacker-Filter
-          <select id="filter">
-            <option value="none">keine</option>
-            <option value="deadband">Deadband (Hysterese)</option>
-            <option value="quantize">Quantisieren</option>
-            <option value="quantize_smooth">Quantisieren + weich</option>
-            <option value="smooth">Weich (Hysterese+Ramp)</option>
-            <option value="median3">Median 3</option>
-            <option value="median5">Median 5</option>
-            <option value="mean4">Mittelwert 4</option>
-            <option value="test">Test (Negativ)</option>
-          </select>
+          <div id="capture-empty" class="empty">
+            <div class="empty-art" aria-hidden="true"></div>
+            <p class="lead">Verbinde deine Monitore, um die Beleuchtung zu starten.</p>
+            <button id="connect-monitors" class="btn primary" type="button">Monitore verbinden</button>
+          </div>
+
+          <div id="capture-live" class="hidden">
+            <div id="monmap" class="monmap"></div>
+            <div id="bars" class="bars"></div>
+            <div class="actions">
+              <button id="start-all" class="btn primary" type="button">Synchronisation starten</button>
+              <button id="stop-all" class="btn" type="button">Stoppen</button>
+              <button id="disconnect-monitors" class="btn ghost expert-only" type="button">Verbindung trennen</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Kino ───────────────────────────────────────────────── -->
+      <section id="panel-cinema" class="panel hidden">
+        <article class="card">
+          <div class="card-head">
+            <h2>Kino-Modus</h2>
+            <span class="hint" data-tip="Reagiert nur auf den Ton – funktioniert auch bei kopiergeschützten Streams.">?</span>
+          </div>
+          <p class="lead">Das Licht folgt der Szene – passend für Netflix &amp; Co.</p>
+
+          <div class="grid">
+            <label class="field color-field">Grundfarbe
+              <input type="color" id="cin-color" value="#5a2882" />
+            </label>
+            <label class="field grow">Intensität
+              <input type="range" id="cin-bri" min="10" max="100" value="70" />
+              <output id="cin-bri-out">0.70</output>
+            </label>
+          </div>
+
+          <div class="grid expert-only">
+            <label class="field">Sensitivität
+              <input type="range" id="cin-sens" min="30" max="250" value="100" />
+              <output id="cin-sens-out">1.00</output>
+            </label>
+            <label class="field">Ruhepegel
+              <input type="range" id="cin-floor" min="0" max="80" value="35" />
+              <output id="cin-floor-out">0.35</output>
+            </label>
+            <label class="field">Trägheit
+              <input type="range" id="cin-smooth" min="20" max="300" value="60" />
+              <output id="cin-smooth-out">0.60</output>
+            </label>
+            <label class="field">Kontrast
+              <input type="range" id="cin-contrast" min="0" max="150" value="100" />
+              <output id="cin-contrast-out">1.00</output>
+            </label>
+            <label class="field">Puls
+              <input type="range" id="cin-pulse" min="0" max="100" value="0" />
+              <output id="cin-pulse-out">0.00</output>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="cinema-start" class="btn primary" type="button">Kino-Modus starten</button>
+            <button id="cinema-stop" class="btn" type="button">Stoppen</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Farbe ──────────────────────────────────────────────── -->
+      <section id="panel-color" class="panel hidden">
+        <article class="card">
+          <div class="card-head">
+            <h2>Statische Farbe</h2>
+            <span class="hint" data-tip="Hält die Leisten einfarbig und pausiert die Synchronisation.">?</span>
+          </div>
+          <div class="swatches">
+            <button class="sw" data-rgb="255,0,0" style="--c:#ff3b30" type="button" aria-label="Rot"></button>
+            <button class="sw" data-rgb="0,255,0" style="--c:#34c759" type="button" aria-label="Grün"></button>
+            <button class="sw" data-rgb="0,0,255" style="--c:#0a84ff" type="button" aria-label="Blau"></button>
+            <button class="sw" data-rgb="255,200,100" style="--c:#ffc864" type="button" aria-label="Warmweiß"></button>
+            <button class="sw" data-rgb="0,0,0" style="--c:#000000" type="button" aria-label="Aus"></button>
+            <label class="sw custom" data-tip="Eigene Farbe">
+              <input type="color" id="custom-color" value="#ff8800" />
+            </label>
+          </div>
+          <div class="actions">
+            <button id="resume-sync" class="btn primary" type="button">Zum Bildschirm-Sync zurück</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Automatik ──────────────────────────────────────────── -->
+      <article class="card">
+        <div class="card-head">
+          <h2>Automatik</h2>
+          <span class="hint" data-tip="Deine Auswahl wird gespeichert und beim nächsten Mal automatisch wiederhergestellt.">?</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autostart" />
+          <span class="track"></span>
+          <span class="switch-label">Beim Anmelden starten</span>
         </label>
-        <label>Filter-Stärke <input type="range" id="filter-strength" min="1" max="32" value="8" /><output id="filter-strength-out">8</output></label>
-        <label>Reports/Update (0 = volle Details)
-          <input type="number" id="max-frames" min="0" max="8" value="0" />
+        <label class="switch">
+          <input type="checkbox" id="autostart-sync" />
+          <span class="track"></span>
+          <span class="switch-label">Synchronisation automatisch starten</span>
         </label>
-      </div>
-    </section>
+      </article>
 
-    <section class="card">
-      <h2>3 · Leisten (1:1 mit Monitor)</h2>
-      <div id="bars" class="bars"><p class="muted">Keine Leiste gefunden.</p></div>
-      <div class="row" style="margin-top:12px">
-        <button id="start-all" class="primary">Alle starten</button>
-        <button id="stop-all">Alle stoppen</button>
-      </div>
-    </section>
+      <!-- ── Profile ────────────────────────────────────────────── -->
+      <article class="card" id="card-profiles">
+        <div class="card-head">
+          <h2>Profile</h2>
+          <span class="hint" data-tip="Speichere deine Einstellungen als Profil und lade sie später wieder.">?</span>
+        </div>
+        <div class="row">
+          <input type="text" id="preset-name" class="input" placeholder="Profilname" maxlength="40" />
+          <button id="preset-save" class="btn" type="button">Aktuell speichern</button>
+        </div>
+        <div id="preset-list" class="preset-list"></div>
+      </article>
 
-    <section class="card">
-      <h2>Automatik (Plug &amp; Play)</h2>
-      <label class="check"><input type="checkbox" id="autostart" /> Beim Login starten</label>
-      <label class="check"><input type="checkbox" id="autostart-sync" /> Sync automatisch starten (beim Start &amp; bei neu angesteckten Leisten)</label>
-      <p class="muted">Der Monitor-Dialog erscheint nur beim ersten Mal; danach wird die Auswahl per Restore-Token wiederhergestellt.</p>
-    </section>
+      <!-- ── Erweitert (Expertenmodus) ──────────────────────────── -->
+      <article class="card expert-only" id="card-advanced">
+        <div class="card-head"><h2>Erweiterte Einstellungen</h2></div>
+        <div class="grid">
+          <label class="field">Bildrate (FPS)
+            <input type="range" id="fps" min="10" max="60" value="24" />
+            <output id="fps-out">24</output>
+          </label>
+          <label class="field">Glättung
+            <input type="range" id="smooth" min="0" max="100" value="22" />
+            <output id="smooth-out">0.22</output>
+          </label>
+          <label class="field">Helligkeit
+            <input type="range" id="brightness" min="0" max="255" value="200" />
+            <output id="brightness-out">200</output>
+          </label>
+        </div>
+        <div class="grid four">
+          <label class="field">Links<input type="number" id="z-left" value="18" min="0" max="254" /></label>
+          <label class="field">Oben<input type="number" id="z-top" value="18" min="0" max="254" /></label>
+          <label class="field">Rechts<input type="number" id="z-right" value="18" min="0" max="254" /></label>
+          <label class="field">Unten<input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
+        </div>
+        <div class="grid">
+          <label class="field">Flacker-Filter
+            <select id="filter">
+              <option value="none">keine</option>
+              <option value="deadband">Deadband (Hysterese)</option>
+              <option value="quantize">Quantisieren</option>
+              <option value="quantize_smooth">Quantisieren + weich</option>
+              <option value="smooth">Weich (Hysterese+Ramp)</option>
+              <option value="median3">Median 3</option>
+              <option value="median5">Median 5</option>
+              <option value="mean4">Mittelwert 4</option>
+              <option value="test">Test (Negativ)</option>
+            </select>
+          </label>
+          <label class="field">Filter-Stärke
+            <input type="range" id="filter-strength" min="1" max="32" value="8" />
+            <output id="filter-strength-out">8</output>
+          </label>
+          <label class="field">Reports/Update <span class="hint" data-tip="0 = volle Detailtreue.">?</span>
+            <input type="number" id="max-frames" min="0" max="8" value="0" />
+          </label>
+        </div>
+      </article>
 
-    <section class="card">
-      <h2>Kino-Modus <span class="muted">(Audio – für Netflix/DRM)</span></h2>
-      <div class="grid zones">
-        <label>Grundfarbe <input type="color" id="cin-color" value="#5a2882" /></label>
-        <label>Sensitivität <input type="range" id="cin-sens" min="30" max="250" value="100" /><output id="cin-sens-out">1.00</output></label>
-        <label>Helligkeit <input type="range" id="cin-bri" min="10" max="100" value="70" /><output id="cin-bri-out">0.70</output></label>
-        <label>Ruhepegel <input type="range" id="cin-floor" min="0" max="80" value="35" /><output id="cin-floor-out">0.35</output></label>
-        <label>Trägheit <input type="range" id="cin-smooth" min="20" max="300" value="60" /><output id="cin-smooth-out">0.60</output></label>
-        <label>Kontrast <input type="range" id="cin-contrast" min="0" max="150" value="100" /><output id="cin-contrast-out">1.00</output></label>
-        <label>Puls <input type="range" id="cin-pulse" min="0" max="100" value="0" /><output id="cin-pulse-out">0.00</output></label>
-      </div>
-      <div class="row">
-        <button id="cinema-start" class="primary">Kino-Modus starten</button>
-        <button id="cinema-stop">Kino-Modus stoppen</button>
-      </div>
-      <p class="muted">Reagiert nur auf den Ton – funktioniert auch bei kopiergeschützten Streams.</p>
-    </section>
+      <!-- ── Geräte (Expertenmodus) ─────────────────────────────── -->
+      <article class="card expert-only" id="card-devices">
+        <div class="card-head"><h2>Geräte</h2></div>
+        <div id="device-list" class="device-list"></div>
+      </article>
 
-    <section class="card">
-      <h2>Statische Farbe <span class="muted">(pausiert den Sync)</span></h2>
-      <div class="row">
-        <button class="sw" data-rgb="255,0,0" style="background:#f00"></button>
-        <button class="sw" data-rgb="0,255,0" style="background:#0f0"></button>
-        <button class="sw" data-rgb="0,0,255" style="background:#00f"></button>
-        <button class="sw" data-rgb="255,200,100" style="background:#ffc864"></button>
-        <button class="sw" data-rgb="0,0,0" style="background:#000"></button>
-        <label class="sw-label">Eigene
-          <input type="color" id="custom-color" value="#ff8800" />
-        </label>
-        <button id="resume-sync" class="primary" style="margin-left:auto">Sync wieder starten</button>
-      </div>
-    </section>
-  </main>
+      <!-- ── Legacy (Expertenmodus) ─────────────────────────────── -->
+      <article class="card expert-only" id="card-legacy">
+        <div class="card-head">
+          <h2>Legacy-UI</h2>
+          <span class="hint" data-tip="Klassische Ansicht mit allen Rohdaten – falls die neue Oberfläche Probleme macht.">?</span>
+        </div>
+        <button id="open-legacy" class="btn" type="button">Legacy-UI öffnen</button>
+      </article>
+    </main>
+  </div>
 
-  <script src="main.js"></script>
+  <div id="boot-error" class="boot-error hidden">
+    Die Oberfläche konnte nicht geladen werden. <a href="legacy/index.html">Legacy-UI öffnen</a>
+  </div>
+
+  <script>
+    setTimeout(function () {
+      if (!window.__bloqsyncReady) {
+        document.getElementById("boot-error")?.classList.remove("hidden");
+      }
+    }, 4000);
+  </script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
