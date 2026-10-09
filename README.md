@@ -5,310 +5,321 @@
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20GNOME%2FWayland-informational)](#)
 
-> ## Hinweis / Notice
+High-performance ambient light ("Ambilight") screen synchronisation for the
+**ROBOBLOQ SyncLight** USB LED bar on Linux (GNOME / Wayland), plus an
+audio-reactive **cinema mode** for DRM content such as Netflix.
+
+> **AI-generated.** The code in this repository was written by an AI model
+> (DeepSeek V4.1 Flash via OpenRouter) and is provided **as-is**. The author does
+> not intend to maintain it or offer support — please **use it or fork it**.
 >
-> **Dieser Code wurde vollständig von KI erzeugt** – Modell **DeepSeek V4.1
-> Flash**, verwendet über **OpenRouter**. Verbrauch für dieses Projekt:
-> **~800K Tokens (Context)**; Kosten über OpenRouter: **~4 US‑$**. Es ist
-> **kein** von Hand geschriebenes Projekt.
+> **License:** [Unlicense](LICENSE) — public domain. Do anything you want with it,
+> with no conditions and no warranty.
 >
-> Der Autor hat **nicht vor**, dieses Projekt zu maintainen oder
-> weiterzuentwickeln. Bereitstellung **as‑is**, ohne Support oder Gewährleistung.
+> **Not affiliated with Robobloq.** This project has **no connection** to
+> Robobloq, Corsair, iCUE or any related company, and is not sponsored,
+> endorsed, authorised or reviewed by any of them. "ROBOBLOQ", "SyncLight" and
+> other names are trademarks of their respective owners and are used here only
+> descriptively, to identify the device being driven. The reverse engineering was
+> done **for interoperability** with a personally owned device.
 >
-> **Lizenz: [Unlicense](LICENSE)** (Public Domain). Jeder darf **absolut alles**
-> damit machen – benutzen, ändern, verkaufen, veröffentlichen, ohne Bedingungen.
-> **Einfach benutzen oder einen Fork daraus machen.**
->
-> ### Keine Verbindung zu Robobloq / Marken
-> Dieses Projekt steht in **keinerlei Verbindung** zu Robobloq, Corsair, iCUE
-> oder verbundenen Firmen und wird von **niemandem** davon gesponsert,
-> unterstützt, autorisiert oder geprüft. „ROBOBLOQ“, „SyncLight“ und andere
-> genannte Namen sind Marken ihrer jeweiligen Inhaber und werden hier **nur
-> beschreibend** verwendet (um zu benennen, welches Gerät angesteuert wird).
-> Es wird **kein Anspruch** auf diese Marken erhoben. Das Reverse Engineering
-> erfolgte **für Interoperabilität** mit einem selbst erworbenen Gerät.
->
-> ### Nur mit genau diesem Modell getestet
-> Getestet wurde **ausschließlich** mit:
-> **ROBOBLOQ SyncLight, 24″-Variante, 54 LEDs** (Firmware **1.9.4**), auf
-> **Zorin OS 18.1 / GNOME 46 / PipeWire 1.0.5**, mit **zwei Monitoren und
-> zwei Leisten**.
->
-> **Andere Größen, LED-Zahlen und Revisionen sind NICHT getestet.** Das
-> Protokoll sollte zwar skalieren, aber: die Update-Rate **sinkt mit steigender
-> LED-Zahl** (mehr Sektionen → mehr 64-Byte-Frames pro Update), und das
-> **Standard-Zonenlayout der GUI ist auf 54 LEDs ausgelegt** (18/18/18).
-> Nutzung auf eigenes Risiko – es wurden keine Tests mit anderen Modellen
-> durchgeführt.
+> **Tested only with** the ROBOBLOQ SyncLight **24″ variant (54 LEDs, firmware
+> 1.9.4)** on **Zorin OS 18.1 / GNOME 46 / PipeWire 1.0.5**, with **two monitors
+> and two bars**. Other sizes, LED counts and revisions are **not tested**.
 
-Hochperformante Bildschirm-Synchronisation („Ambilight“) für die
-**ROBOBLOQ SyncLight** USB-LED-Leiste unter Linux (GNOME/Wayland).
+## Features
 
-Dies ist ein sauberer Neuaufbau (Greenfield). Das bekannte Projekt
-`openLightsSync` diente nur als Referenz – es nutzt den langsamen Pfad und
-eine falsche Frame-Kodierung und erreicht dadurch nur wenige FPS mit
-Aussetzern.
-
-## Installation
-
-**Für Anwender (empfohlen): fertige Pakete aus den GitHub *Releases*.**
-
-- **Debian / Ubuntu / Zorin / Mint / Pop!\_OS (.deb)**
-  ```bash
-  sudo apt install ./bloqsync_*.deb
-  ```
-  (oder Doppelklick – `apt` zieht alle Abhängigkeiten automatisch)
-- **Fedora / openSUSE (.rpm)**
-  ```bash
-  sudo dnf install ./bloqsync-*.rpm
-  ```
-- **Andere Distributionen (AppImage)**
-  ```bash
-  chmod +x bloqsync_*.AppImage && ./bloqsync_*.AppImage
-  ```
-
-Beim `.deb`/`.rpm` werden die nötigen Runtime-Bibliotheken (WebKitGTK, GTK3,
-PipeWire, PulseAudio, …) automatisch mitinstalliert – **kein Rust, keine
-Entwicklerpakete, keine Handarbeit**. Das Paket enthält außerdem die
-udev-Regel (Leisten-Zugriff + Tastatur-Interface unterdrücken).
-
-**Aus dem Quellcode (Entwickler):** `./install.sh` (installiert Build-Deps,
-baut und packt ein `.deb`) oder siehe „Bauen & Ausführen".
-
-> Beim ersten Bildschirm-Sync fragt GNOME einmal pro Login nach der
-> Freigabe (Sicherheitsfunktion des Portal). Danach läuft alles automatisch.
-
-## Ergebnis
-
-- Flüssiger Sync mit vollem **54-LED**-Farbverlauf (Standard: **24 fps**,
-  Glättung **0.22**; bis ~30 fps möglich)
-- Echtes Per-LED/Per-Zonen-Steuerung über das schnelle `setSyncScreen`-Protokoll
-- Capture über **PipeWire** (xdg-desktop-portal ScreenCast), nicht per Screenshot-Subprozess
-- Geräte-Autoerkennung, Konfigurations-Persistenz, Tauri-GUI
-- **Kino-Modus (Audio-reactive)** für DRM-Inhalte (Netflix u. a.): feste
-  Grundfarbe + fließende, kontrastbasierte Helligkeit aus dem Ton
-
----
+- Smooth screen sync with a full **54-LED** gradient (default **24 fps**,
+  smoothing **0.22**; up to ~30 fps possible)
+- True per-LED / per-zone control via the fast `setSyncScreen` protocol
+- Capture through **PipeWire** (`xdg-desktop-portal` ScreenCast) — no screenshot
+  subprocesses
+- Device auto-discovery, persistent configuration, **Tauri** desktop app
+- **Cinema mode** (audio-reactive) for DRM content: a fixed base colour with a
+  flowing, contrast-driven brightness taken from the audio
+- **Two-level UI**: a plug-and-play normal mode and an optional expert mode
+- **Named profiles** for saving and recalling settings
+- Schematic **multi-monitor map** and per-bar monitor assignment
+- The previous UI is preserved as a **legacy UI** (fallback)
 
 ## Screenshots
 
-![Hauptfenster](docs/screenshot-main.png)
-![Leisten, Kino-Modus, Statische Farbe](docs/screenshot-settings.png)
+| Normal mode | Expert mode |
+|---|---|
+| ![Main window](docs/screenshot-main.png) | ![Expert mode](docs/screenshot-expert.png) |
 
-## Hardware & Protokoll (reverse-engineered & verifiziert)
+| Cinema mode | Static colour |
+|---|---|
+| ![Cinema mode](docs/screenshot-cinema.png) | ![Static colour](docs/screenshot-color.png) |
 
-Gerät: `VID 0x1A86 / PID 0xFE07` (Hersteller „ROBOBLOQ“), **HID Interface 0**
-(Vendor, Usage Page `0xFF00`), Interface 1 = Tastatur (Touch-Buttons, ignorieren).
+## Installation
 
-- **Unnummerierte 64-Byte-HID-Reports** (Report-Descriptor ohne Report-ID).
-- Live verifiziert: **Firmware 1.9.4, 54 LEDs**, UUID (Beispiel `a1b2c3d4e5f60718`; pro Gerät verschieden).
-  Die Serial ist bei allen Geräten identisch (`0123456789`), taugt also nicht
-  zur Unterscheidung – dafür **Geräte-UUID** verwenden (Fallback: USB-Port-Pfad).
+**For users (recommended): the prebuilt `.deb` from the GitHub *Releases*.**
 
-### Rahmen (Framing)
-
-```
-RB:  52 42  LEN   ID  ACT  payload…  CHK          LEN = Gesamtlänge (1 Byte)
-SC:  53 43  LENhi LENlo ID ACT payload… CHK        LEN = 16-bit Big-Endian
-CHK = (Summe aller vorherigen Bytes) mod 256
-ID  = Sequenzzähler, erster Wert 2, 255 → 1
+```bash
+sudo apt install ./bloqsync_*.deb
 ```
 
-### Wichtige Aktionen
+The `.deb` pulls in the required runtime libraries (WebKitGTK, GTK3, PipeWire,
+PulseAudio, …) automatically — **no Rust, no development packages, no manual
+steps**. The package also installs the udev rule (bar access + keyboard interface
+suppression).
 
-| ACT | Name | Rahmen | Bedeutung |
-|----|------|--------|-----------|
-| `0x80` 128 | `setSyncScreen` | **SC** | Farb-Streaming (schnell) |
-| `0x86` 134 | `setSectionLED` | RB | persistente Farbe |
-| `0x87` 135 | `setBrightness` | RB | Helligkeit (1 Byte) |
-| `0x82` 130 | `readDeviceInfo` | RB | Antwort: id[5:8], displaySize[8], **lamps[11]**, uuid[12:20], ver[21:23] |
+Other formats (`.rpm`, AppImage) can be produced from source with the Tauri
+bundler (see [Building](#building)).
 
-**Farbkodierung** = 5-Byte-Sektionen `[start, R, G, B, end]`, 1-basiert,
-inklusive. `end=254` = „bis Ende der Leiste“. Eine Sektion mit `start==end`
-adressiert eine einzelne LED.
+**From source (developers):** run `./install.sh` (installs build dependencies,
+builds and bundles a `.deb`) or see [Building](#building).
 
-### Die entscheidenden Erkenntnisse (empirisch)
+> On the first screen sync, GNOME asks once per login for permission (a portal
+> security feature). After that everything runs automatically.
 
-1. **Keine Reassemblierung über mehrere Reports!** Ein großer SC-Frame
-   (277 B, 5 Reports) wird **ignoriert**. Jeder Befehl muss in **ein**
-   64-Byte-Report passen → **max. 11 Sektionen pro Frame**.
-2. **Mehrere kleine Frames pro Update funktionieren** (das Gerät behält
-   bereits gesetzte Sektionen – Komposition), **aber** nur mit einer kurzen
-   Pause: **~3 ms zwischen den Frames**. Ohne Pause „rollt“/flackert die
-   Leiste. Mit 3 ms Abstand ist der volle 54-LED-Farbverlauf stabil.
-3. Für 54 LEDs werden also 5 Frames à 11 Sektionen gesendet; möglich sind bis
-   zu ~30 Updates/s (Standard: 24).
+## Usage
 
-> `openLightsSync` scheiterte, weil es (a) nur den langsamen `0x86`-Pfad mit
-> 20 ms-Sleeps nutzte, (b) `setSyncScreen` mit 1-Byte-Länge + CRC16 statt
-> 16-bit-BE + Summen-Checksum baute und (c) pro Frame einen Screenshot-
-> Subprozess startete.
+### GUI
 
-### Schreibweise
+The app has two levels:
 
-Unnummeriertes hidraw: pro Befehl genau 64 Bytes schreiben (mit Nullen
-aufgefüllt), **kein** führendes Report-ID-Byte.
+- **Normal mode** — plug and play. Click **"Monitore verbinden"** to select the
+  monitors once; the app shows a schematic map and one card per bar. Each bar is
+  named after the monitor it is assigned to (Monitor 1, 2, …) and can be
+  mirrored, identified (blink) and started/stopped. Automation toggles
+  ("start on login", "start synchronisation automatically") and **profiles** are
+  always available.
+- **Expert mode** — toggle the gear icon (top right). Reveals raw settings such
+  as FPS, smoothing, brightness, zone layout, flicker filters, reports/update,
+  device identifiers and the switch to the **legacy UI**. The choice is
+  remembered.
 
----
+Operating modes are selected with the segmented control at the top:
 
-## Architektur
+- **Bildschirm (Screen)** — border sampling of the captured monitors.
+- **Kino (Cinema)** — audio-reactive lighting for DRM streams.
+- **Farbe (Colour)** — a static colour that pauses the sync.
+
+Settings are stored in `~/.config/bloqsync/config.json`. Old config files remain
+readable (new fields are additive).
+
+### CLI
+
+```bash
+bloqsync list                         # connected bars
+bloqsync info                         # firmware / LED count / UUID
+bloqsync fill 255 0 0                 # persistent colour
+bloqsync off | brightness 200
+bloqsync gradient | pattern | stream 8
+bloqsync bench 5                      # achievable frame rate
+bloqsync calibrate 10                 # determine orientation
+bloqsync capture-test 6               # capture only (picker dialog)
+bloqsync sync 20                      # screen sync (choose monitor)
+bloqsync sync 20 --reverse            # mirrored mounting
+bloqsync sync 30 --fps 30 --smooth 0.4
+bloqsync freeze 15                    # freeze one frame (flicker test)
+bloqsync audio-test 15                # print audio features
+bloqsync audio-sync 60                # audio-reactive cinema mode
+```
+
+## Hardware & protocol (reverse-engineered & verified)
+
+Device: `VID 0x1A86 / PID 0xFE07` (vendor "ROBOBLOQ"), **HID interface 0**
+(vendor, usage page `0xFF00`); interface 1 is a keyboard (touch buttons, ignored).
+
+- **Unnumbered 64-byte HID reports** (report descriptor without a report ID).
+- Verified live: **firmware 1.9.4, 54 LEDs**, UUID (example `a1b2c3d4e5f60718`,
+  different per device). The serial is identical on every device
+  (`0123456789`) and is therefore useless for identification — use the **device
+  UUID** instead (fallback: USB port path).
+
+### Framing
+
+```
+RB:  52 42  LEN   ID  ACT  payload…  CHK          LEN = total length (1 byte)
+SC:  53 43  LENhi LENlo ID ACT payload… CHK        LEN = 16-bit big-endian
+CHK = (sum of all preceding bytes) mod 256
+ID  = sequence counter, first value 2, 255 → 1
+```
+
+### Key actions
+
+| ACT | Name | Frame | Meaning |
+|----|------|-------|---------|
+| `0x80` 128 | `setSyncScreen` | **SC** | colour streaming (fast) |
+| `0x86` 134 | `setSectionLED` | RB | persistent colour |
+| `0x87` 135 | `setBrightness` | RB | brightness (1 byte) |
+| `0x82` 130 | `readDeviceInfo` | RB | reply: id[5:8], displaySize[8], **lamps[11]**, uuid[12:20], ver[21:23] |
+
+**Colour encoding** uses 5-byte *sections* `[start, R, G, B, end]`, 1-based and
+inclusive. `end = 254` means "until the end of the strip". A section with
+`start == end` addresses a single LED.
+
+### The decisive findings (empirical)
+
+1. **No reassembly across multiple reports.** A large SC frame (277 B, 5
+   reports) is **ignored**. Every command must fit in **one** 64-byte report →
+   **at most 11 sections per frame**.
+2. **Several small frames per update work** (the device keeps previously set
+   sections — composition), **but only with a short pause: ~3 ms between
+   frames**. Without the pause the bar "rolls"/flickers. With 3 ms spacing the
+   full 54-LED gradient is stable.
+3. For 54 LEDs, 5 frames of 11 sections each are sent; up to ~30 updates/s are
+   possible (default: 24).
+
+> The community project `openLightsSync` used only the slow `0x86` path with
+> 20 ms sleeps, built `setSyncScreen` with a 1-byte length + CRC16 instead of
+> 16-bit BE + sum checksum, and started a screenshot subprocess per frame.
+
+### Writing
+
+Unnumbered hidraw: write exactly 64 bytes per command (zero-padded), with **no**
+leading report-ID byte.
+
+## Avoiding flicker
+
+The bar has only 54 LEDs but must represent a 1920×1080 image. If it follows
+every micro-change it visibly "jumps" between colours. Empirically:
+
+- **Keep the frame rate low**: ~24 fps is the sweet spot. Smoothing acts *per
+  frame*, so at 60 fps the bar reacts to noise much faster within the same time
+  → restless.
+- **Smoothing ~0.22** (slider 0–1; lower = slower/calmer).
+- **Reports/update = 0** (multi-frame, full colour detail). `1` (atomic, max. 11
+  zones) was an attempt against "white flashes" but causes visible zone jumping.
+- **White flashes** were isolated: a constant red (1 report) and a *moving*
+  multi-frame gradient (5 frames, 3 ms spacing, continuous) were both stable. The
+  flashes are therefore not caused by multi-frame but by an **over-reactive**
+  colour response.
+- **Isolation tests** (with `python`/CLI) showed that the device holds the SC
+  state but does **not** reassemble multi-report frames, and cannot tolerate
+  back-to-back frames (3 ms spacing required).
+
+### Optional filter toolbox (in the UI)
+
+Under "Flacker-Filter" the following are available for comparison: `none`,
+`Deadband`, `Quantize`, `Quantize + smooth`, `Median 3/5`, `Mean 4`,
+`Smooth (hysteresis + ramp)` and `Test (negative)` (diagnostic). The filter is
+applied when a bar is **started**.
+
+## Cinema mode (audio-reactive, for DRM/Netflix)
+
+Protected streams deliver only black through ScreenCast, so there is a purely
+**audio-reactive** mode:
+
+- Captures the default sink's **monitor** (PulseAudio/PipeWire).
+- FFT features: band energies, overall loudness (RMS with AGC), spectral
+  centroid, flatness, onset, stereo.
+- **Context/dynamics**: short-term (~0.15 s) vs. long-term (~3 s) loudness →
+  **contrast** (scene swells rather than beats).
+- Mapping: a **fixed base colour** plus a rest level; only the brightness follows
+  scene loudness and contrast (time-based inertia). No hue changes, no
+  beat flicker.
+- Controls: base colour, brightness, rest level, inertia, contrast, pulse,
+  sensitivity (persistent).
+
+## Plug & play (autostart, hotplug, restore token)
+
+- **Autostart:** the "start on login" toggle writes
+  `~/.config/autostart/bloqsync.desktop`.
+- **Auto-sync:** the "start synchronisation automatically" toggle starts at app
+  launch and keeps the configured bars running via a **watchdog** (every 2 s),
+  including **automatic reconnect** after unplugging/replugging.
+- **Restore token:** the monitor selection is stored as a persistent portal token
+  in `~/.config/bloqsync/config.json`, so the GNOME monitor dialog appears only
+  **once**; afterwards everything starts without a dialog.
+- **Stable identity:** bars are identified primarily by their **device UUID**
+  (e.g. `a1b2c3d4e5f60718`, read from the device), which stays the same even when
+  a bar is moved to a **different USB port**. Fallbacks: USB port id (`1-2`) or
+  `/dev/hidrawN`.
+- **Keyboard nuisance:** interface 1 of the bar types a URL (vendor page) when
+  plugged in. The rule `contrib/99-bloqsync.rules` makes libinput ignore the
+  input device:
+  ```bash
+  sudo cp contrib/99-bloqsync.rules /etc/udev/rules.d/
+  sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
+  ```
+
+## Architecture
 
 ```
 src/
-  protocol.rs   Frames (RB/SC), Sektions-Komprimierung, ≤64-B-Chunking, Tests
-  device.rs     sysfs-Discovery, rohes hidraw-I/O, Identify, paced send
-  capture.rs    PipeWire ScreenCast (ashpd + pipewire-rs), Latest-Frame-Slots
-  sampling.rs   Randabtastung → LEDs, Layout (links/oben/rechts/unten), Smoothing
-  engine.rs     Sync-Thread: Frame → Sampling → Smoothing → SC-Frames
+  protocol.rs   RB/SC frames, section compression, ≤64-B chunking, tests
+  device.rs     sysfs discovery, raw hidraw I/O, identify, paced send
+  capture.rs    PipeWire ScreenCast (ashpd + pipewire-rs), latest-frame slots
+  sampling.rs   border sampling → LEDs, layout (l/t/r/b), smoothing
+  engine.rs     sync thread: frame → sampling → smoothing → SC frames
+  filters.rs    optional flicker filters (deadband/quantize/median/…)
+  audio.rs      audio analysis (FFT, bands, RMS+AGC, contrast, onset, stereo)
+  cinema.rs     cinema mapping (fixed base colour, brightness from audio)
   main.rs       CLI
-gui/            Tauri v2 App (ui/ = HTML/JS/CSS), Config unter ~/.config/bloqsync/
+gui/            Tauri v2 app
+  src/
+    main.rs       builder wiring only
+    config.rs     config types, defaults, JSON persistence, profiles/presets
+    state.rs      AppState and runtime handles
+    runtime.rs    capture/bar/cinema lifecycle, autostart, background threads
+    commands.rs   Tauri commands
+    logging.rs    file + stderr logging
+    monitors.rs   xrandr setup signature/parsing
+  ui/             HTML/CSS/ES-module frontend (normal + expert modes)
+  ui/legacy/      preserved previous UI
 ```
 
-Capture: `xdg-desktop-portal` ScreenCast v5 (GNOME-Picker beim Start), ein
-PipeWire-Stream pro Monitor, Restore-Tokens möglich.
+Capture uses `xdg-desktop-portal` ScreenCast v5 (GNOME picker on start), one
+PipeWire stream per monitor, with restore tokens.
 
----
-
-## Bauen & Ausführen
+## Building
 
 ```bash
 export PATH="$PATH:$HOME/.cargo/bin"
 
-# CLI
-cd ~/Code/bloqsync
+# CLI / library
 cargo build
 cargo test
 
 # GUI
 cd gui
 cargo build
-cargo run        # oder: ./target/debug/bloqsync-gui
+cargo run        # or: ./target/debug/bloqsync-gui
+
+# Package (.deb)
+cargo tauri build --bundles deb
 ```
 
-Systemabhängigkeiten: `libhidapi-dev`, `libpipewire-0.3-dev`, `libspa-0.2-dev`,
-`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`.
+System dependencies (development): `libpipewire-0.3-dev`, `libspa-0.2-dev`,
+`libpulse-dev`, `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`,
+`libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
-### CLI
+## Status & limitations
 
-```bash
-bloqsync list                         # Geräte
-bloqsync info                         # FW / LED-Anzahl / UUID
-bloqsync fill 255 0 0                 # persistente Farbe
-bloqsync off | brightness 200
-bloqsync gradient | pattern | stream 8
-bloqsync bench 5                      # erreichbare FPS
-bloqsync calibrate 10                 # Orientierung bestimmen
-bloqsync capture-test 6               # nur Capture testen
-bloqsync sync 20                      # Bildschirm-Sync (Monitor wählen)
-bloqsync sync 20 --reverse            # gespiegelte Montage
-bloqsync sync 30 --fps 30 --smooth 0.4
-```
+- **Not maintained:** a one-off AI-generated snapshot (see the notice at the top).
+  Issues/PRs are unlikely to be handled → please **fork**.
+- **Tested with one model only:** ROBOBLOQ SyncLight, **24″ variant with 54 LEDs**
+  (firmware 1.9.4), on GNOME/Wayland (Zorin OS 18.1 / GNOME 46, PipeWire 1.0.5),
+  two monitors + two bars. Other models / LED counts / revisions are **untested**.
+- The update rate **decreases with a higher LED count** (more sections → more
+  64-byte frames per update), and the **default zone layout is tuned for 54 LEDs**
+  (18/18/18). Use at your own risk.
+- **Capture** goes through `xdg-desktop-portal` ScreenCast; the monitor dialog
+  appears only the first time (restore token).
+- The **protocol is reverse-engineered** and may differ on other firmware or
+  revisions.
+- Multi-monitor / multi-bar **1:1** mapping is implemented and tested.
 
-### GUI
+## Feedback & compatibility
 
-Gerät wählen → „Gespiegelt“ je nach Montage → „Monitor wählen & starten“
-(GNOME-Dialog) → FPS/Glättung/Zonen/Helligkeit einstellen. Einstellungen
-werden in `~/.config/bloqsync/config.json` gespeichert.
+- **Questions / chat:** GitHub *Discussions*.
+- **Bugs:** *Issues* → "Bug report".
+- **Different model?** Please use *Issues* → "Hardware / compatibility". So far
+  only the **24″ variant (54 LEDs)** has been tested — reports about other sizes
+  and LED counts are very welcome.
+- No telemetry: the tool sends **nothing** anywhere.
 
----
+## Acknowledgements
 
-## Flackern vermeiden (wichtige Erkenntnisse)
+Community projects around the SyncLight bar, in particular `openLightsSync`,
+served as references. The code in this repository is independent and
+AI-generated.
 
-Die Leiste hat nur 54 LEDs, muss aber ein 1920×1080-Bild abbilden. Folgt sie
-jeder Mikro-Änderung, „springt“ sie sichtbar zwischen Farben. Empirisch
-ermittelt:
+## License
 
-- **FPS bewusst niedriger** halten: **~24 fps** ist der Sweet Spot. Die
-  Glättung wirkt *pro Frame*, daher reagiert die Leiste bei 60 fps in
-  derselben Zeit viel schneller auf Rauschen → unruhig.
-- **Glättung ~0.22** (Regler 0–1; niedriger = träger/ruhiger).
-- **Reports/Update = 0** (Multi-Frame, volle Detailtreue). `1` (atomar, max.
-  11 Zonen) war der Versuch gegen „Weiß-Blitzer“, verursacht aber sichtbares
-  Springen der Zonen.
-- **Weiß-Blitzer** wurden isoliert: konstantes Rot (1 Report) und ein
-  *bewegter* Multi-Frame-Verlauf (5 Frames, 3 ms Abstand, kontinuierlich)
-  waren beide stabil. Die Blitzer entstehen also nicht durch Multi-Frame,
-  sondern durch ein **zu reaktives** Farbverhalten.
-- **Isolations-Tests** (mit `python`/CLI) haben gezeigt: Das Gerät hält den
-  SC-Zustand, reassembliert aber **keine** Multi-Report-Frames, und verträgt
-  keine back-to-back-Frames (3 ms Abstand nötig).
-
-### Optionales Filter-Toolbox (im UI)
-Unter „Flacker-Filter“ stehen zum Vergleich bereit: `keine`, `Deadband`,
-`Quantisieren`, `Quantisieren + weich`, `Median 3/5`, `Mittelwert 4`,
-`Weich (Hysterese+Ramp)` und `Test (Negativ)` (diagnostisch). Der Filter wird
-beim **Start** der Leiste angewendet.
-
-## Kino-Modus (Audio-reactive, für DRM/Netflix)
-
-Bei kopiergeschützten Streams liefert der ScreenCast nur Schwarz, daher gibt es
-einen rein **audio-reaktiven** Modus:
-
-- Capture des Default-Sink-**Monitors** (PulseAudio/PipeWire).
-- FFT-Merkmale: Band-Energien, Gesamtlautheit (RMS mit AGC),
-  Spektral-Centroid, Flatness, Onset, Stereo.
-- **Kontext/Dynamik**: kurzfristige (~0.15 s) vs. langfristige (~3 s) Lautheit
-  → **Kontrast** (Szenen-Schwellen statt Takt).
-- Mapping: **feste Grundfarbe** + Ruhepegel; nur die Helligkeit fließt mit
-  Szenen-Lautheit und Kontrast (time-based Trägheit). Kein Farbwechsel, kein
-  Beat-Flimmern.
-- Regler: Grundfarbe, Helligkeit, Ruhepegel, Trägheit, Kontrast, Puls,
-  Sensitivität (persistent).
-
-## Plug & Play (Autostart, Hotplug, Restore-Token)
-
-- **Autostart:** Checkbox „Beim Login starten“ schreibt
-  `~/.config/autostart/bloqsync.desktop`.
-- **Auto-Sync:** Checkbox „Sync automatisch starten“ startet beim App-Start und
-  hält die konfigurierten Leisten per **Watchdog** (alle 2 s) am Laufen –
-  inkl. **automatischem Reconnect** nach dem Abziehen/Anstecken.
-- **Restore-Token:** Die Monitor-Auswahl wird als persistenter Portal-Token in
-  `~/.config/bloqsync/config.json` gespeichert. Dadurch erscheint der
-  GNOME-Monitor-Dialog nur **einmal**; danach startet alles ohne Dialog.
-- **Stabile Identität:** Leisten werden primär über ihre **Geräte-UUID**
-  (z. B. `a1b2c3d4e5f60718`, aus dem Gerät ausgelesen) identifiziert – diese
-  bleibt gleich, auch wenn die Leiste in einen **anderen USB-Port** gesteckt
-  wird. Fallback: USB-Port-ID (`1-2`) bzw. `/dev/hidrawN`.
-- **Tastatur-Nervigkeit:** Interface 1 der Leiste tippt beim Einstecken eine
-  URL (Herstellerseite). Die Regel `contrib/99-bloqsync.rules` lässt libinput
-  das Input-Gerät ignorieren:
-  ```bash
-  sudo cp contrib/99-bloqsync.rules /etc/udev/rules.d/
-  sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
-  ```
-
-## Status & Grenzen
-
-- **Nicht gewartet:** einmaliger KI-generierter Snapshot (siehe Hinweis oben).
-  Issues/PRs werden voraussichtlich nicht bearbeitet → bitte **forken**.
-- **Getestet nur mit einem Modell:** ROBOBLOQ SyncLight, **24″-Variante mit
-  54 LEDs** (Firmware 1.9.4), auf GNOME/Wayland (Zorin OS 18.1 / GNOME 46,
-  PipeWire 1.0.5), zwei Monitore + zwei Leisten. Andere Modelle/LED-Zahlen/
-  Revisionen sind **ungetestet**.
-- **Capture** via xdg-desktop-portal ScreenCast; der Monitor-Dialog erscheint
-  nur beim ersten Mal (Restore-Token).
-- **Reverse-engineertes Protokoll** – kann bei anderer Firmware/Revision
-  abweichen.
-- Multi-Monitor / Multi-Leiste **1:1** ist implementiert und getestet.
-
-## Danksagung
-
-Als Referenz dienten Community-Projekte rund um die SyncLight-Leiste,
-insbesondere `openLightsSync`. Der eigentliche Code dieses Repos ist eigenständig
-und KI-generiert.
-
-## Feedback & Kompatibilität
-
-- **Fragen / Austausch:** GitHub *Discussions*.
-- **Fehler:** *Issues* → „Bug report".
-- **Anderes Modell?** Bitte *Issues* → „Hardware / Kompatibilität" nutzen. Wir
-  haben bisher **nur die 24″-Variante (54 LEDs)** getestet – Rückmeldungen zu
-  anderen Größen/LED-Zahlen sind sehr willkommen.
-- Bitte keine Telemetrie: Das Tool sendet **nichts** nach außen. Reichweite gibt
-  es über Release-Downloads/Stars.
-
-## Lizenz
-
-[Unlicense](LICENSE) – **Public Domain**. Jeder darf absolut alles damit machen,
-ohne Bedingungen und ohne Gewährleistung.
-
+[Unlicense](LICENSE) — **public domain**. Do absolutely anything with it, with no
+conditions and no warranty.
