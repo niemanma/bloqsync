@@ -5,7 +5,13 @@
 
 use bloqsync::sampling::Layout;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+/// Serialises read-modify-write access to the config file so that concurrent
+/// command handlers (e.g. starting several bars at once) cannot overwrite each
+/// other's changes.
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 
 /// Stable device identity cached per USB port.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -251,6 +257,34 @@ impl Config {
     pub(crate) fn remove_preset(&mut self, name: &str) {
         self.presets.retain(|p| p.name != name);
     }
+
+    /// Fold a [`Config`] coming from the UI into `self` (the authoritative
+    /// on-disk config): Rust-managed fields and bars the UI does not know about
+    /// are preserved, and the resulting bar mapping is mirrored into the active
+    /// profile so it can be restored later.
+    pub(crate) fn merge_from_ui(&mut self, mut incoming: Config, sig: &str) {
+        // The restore token is managed by Rust, not the UI.
+        if incoming.restore_token.is_none() {
+            incoming.restore_token = self.restore_token.clone();
+        }
+        // Profiles and presets are managed through their own commands.
+        if incoming.profiles.is_empty() {
+            incoming.profiles = self.profiles.clone();
+        }
+        if incoming.presets.is_empty() {
+            incoming.presets = self.presets.clone();
+        }
+        // Keep bars that are not currently reported by the UI (e.g. a bar that
+        // is temporarily unplugged or on another port).
+        for b in self.bars.clone() {
+            if !incoming.bars.iter().any(|n| n.bar_path == b.bar_path) {
+                incoming.bars.push(b);
+            }
+        }
+        let bars = incoming.bars.clone();
+        incoming.upsert_profile_bars(sig, &bars);
+        *self = incoming;
+    }
 }
 
 fn config_path() -> PathBuf {
@@ -258,20 +292,45 @@ fn config_path() -> PathBuf {
     PathBuf::from(home).join(".config/bloqsync/config.json")
 }
 
-pub(crate) fn read_config() -> Config {
-    std::fs::read_to_string(config_path())
+fn read_config_at(path: &Path) -> Config {
+    std::fs::read_to_string(path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
 }
 
-pub(crate) fn write_config(cfg: &Config) {
-    if let Some(dir) = config_path().parent() {
+/// Write via a temp file + rename so a concurrent reader never sees a
+/// half-written (unparseable) config.
+fn write_config_at(path: &Path, cfg: &Config) {
+    if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(s) = serde_json::to_string_pretty(cfg) {
-        let _ = std::fs::write(config_path(), s);
+        let mut tmp = path.to_path_buf();
+        tmp.set_extension("tmp");
+        if std::fs::write(&tmp, s).is_ok() {
+            let _ = std::fs::rename(&tmp, path);
+        }
     }
+}
+
+pub(crate) fn read_config() -> Config {
+    read_config_at(&config_path())
+}
+
+/// Read, mutate and write the config atomically with respect to every other
+/// caller in this process. Use this for any read-modify-write sequence; plain
+/// [`read_config`] is fine for read-only use.
+pub(crate) fn update_config<R>(f: impl FnOnce(&mut Config) -> R) -> R {
+    update_config_at(&config_path(), f)
+}
+
+fn update_config_at<R>(path: &Path, f: impl FnOnce(&mut Config) -> R) -> R {
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cfg = read_config_at(path);
+    let result = f(&mut cfg);
+    write_config_at(path, &cfg);
+    result
 }
 
 #[cfg(test)]
@@ -423,5 +482,68 @@ mod tests {
         let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert!(cfg.presets.is_empty());
+    }
+
+    #[test]
+    fn merge_from_ui_preserves_managed_fields() {
+        let mut disk = Config::default();
+        disk.restore_token = Some("tok".into());
+        disk.upsert_preset(preset("Kino", 50));
+        disk.bars = vec![bar("ghost", 2, false)];
+
+        let mut ui = Config::default();
+        ui.bars = vec![bar("a", 1, true), bar("b", 0, false)];
+
+        disk.merge_from_ui(ui, "S");
+
+        assert_eq!(disk.restore_token.as_deref(), Some("tok"));
+        assert_eq!(disk.presets.len(), 1);
+        // Bar the UI did not report is kept...
+        assert!(disk.bars.iter().any(|b| b.bar_path == "ghost"));
+        // ...and the active profile mirrors the full merged mapping.
+        let prof = disk.active_profile("S").unwrap();
+        assert_eq!(prof.bars.len(), 3);
+        assert_eq!(prof.bars.iter().find(|b| b.bar_path == "a").unwrap().stream_index, 1);
+    }
+
+    #[test]
+    fn merge_from_ui_uses_incoming_when_present() {
+        let mut disk = Config::default();
+        disk.restore_token = Some("old".into());
+        disk.upsert_preset(preset("Keep", 1));
+
+        let mut ui = Config::default();
+        ui.restore_token = Some("new".into());
+        ui.presets = vec![preset("OnlyNew", 2)];
+
+        disk.merge_from_ui(ui, "S");
+        assert_eq!(disk.restore_token.as_deref(), Some("new"));
+        assert_eq!(disk.presets.len(), 1);
+        assert_eq!(disk.presets[0].name, "OnlyNew");
+    }
+
+    #[test]
+    fn concurrent_updates_do_not_lose_writes() {
+        let dir = std::env::temp_dir().join(format!("bloqsync-cfg-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = std::sync::Arc::new(dir.join("config.json"));
+        write_config_at(path.as_path(), &Config::default());
+
+        let mut handles = Vec::new();
+        for i in 0..8usize {
+            let p = path.clone();
+            handles.push(std::thread::spawn(move || {
+                update_config_at(p.as_path(), |cfg| {
+                    cfg.upsert_profile_bar("S", bar(&format!("bar{i}"), i, false));
+                });
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let cfg = read_config_at(path.as_path());
+        assert_eq!(cfg.active_profile("S").unwrap().bars.len(), 8);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

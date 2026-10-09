@@ -1,6 +1,6 @@
 //! Tauri commands exposed to the UI. Thin adapters over [`crate::runtime`].
 
-use crate::config::{read_config, write_config, Config, Ident, Preset};
+use crate::config::{read_config, update_config, Config, Ident, Preset};
 use crate::logging::log;
 use crate::monitors;
 use crate::runtime::{self, BarSettings, parse_filter};
@@ -297,32 +297,11 @@ pub(crate) fn get_config() -> Config {
 }
 
 #[tauri::command]
-pub(crate) fn save_config(mut cfg: Config) {
-    let existing = read_config();
-    // Preserve the restore token (managed by Rust, not the UI).
-    if cfg.restore_token.is_none() {
-        cfg.restore_token = existing.restore_token.clone();
-    }
-    // Preserve profiles (the UI does not send them).
-    if cfg.profiles.is_empty() {
-        cfg.profiles = existing.profiles.clone();
-    }
-    // Preserve presets (managed via save_preset/delete_preset, not save_config).
-    if cfg.presets.is_empty() {
-        cfg.presets = existing.presets.clone();
-    }
-    // Preserve configured bars that are not currently reported by the UI
-    // (e.g. a bar that is temporarily unplugged or on another port).
-    for b in existing.bars.clone() {
-        if !cfg.bars.iter().any(|n| n.bar_path == b.bar_path) {
-            cfg.bars.push(b);
-        }
-    }
-    // Mirror the current mapping into the profile for the active setup.
+pub(crate) fn save_config(cfg: Config) {
+    // Atomic read-modify-write: parallel save_config/start_bar calls must not
+    // clobber each other's bar mapping (that made swapped bars revert).
     let sig = monitors::signature();
-    let bars = cfg.bars.clone();
-    cfg.upsert_profile_bars(&sig, &bars);
-    write_config(&cfg);
+    update_config(|existing| existing.merge_from_ui(cfg, &sig));
 }
 
 #[tauri::command]
@@ -347,16 +326,12 @@ pub(crate) fn list_presets() -> Vec<Preset> {
 
 #[tauri::command]
 pub(crate) fn save_preset(preset: Preset) -> Result<(), String> {
-    let mut cfg = read_config();
-    cfg.upsert_preset(preset);
-    write_config(&cfg);
+    update_config(|cfg| cfg.upsert_preset(preset));
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn delete_preset(name: String) -> Result<(), String> {
-    let mut cfg = read_config();
-    cfg.remove_preset(&name);
-    write_config(&cfg);
+    update_config(|cfg| cfg.remove_preset(&name));
     Ok(())
 }

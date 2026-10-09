@@ -1,7 +1,7 @@
 //! Non-command runtime logic: capture/bar/cinema lifecycle, autostart and the
 //! background threads (hotplug watcher, setup watchdog).
 
-use crate::config::{read_config, write_config, BarConfig, Config, Ident};
+use crate::config::{read_config, update_config, BarConfig, Config, Ident};
 use crate::logging::log;
 use crate::monitors;
 use crate::state::{AppState, BarRuntime, CinemaRuntime};
@@ -86,10 +86,10 @@ pub(crate) fn open_capture_with(
             sig
         ));
         if let Some(tok) = &c.restore_token {
-            let mut cfg = read_config();
-            cfg.upsert_profile_token(&sig, tok);
-            cfg.restore_token = Some(tok.clone());
-            write_config(&cfg);
+            update_config(|cfg| {
+                cfg.upsert_profile_token(&sig, tok);
+                cfg.restore_token = Some(tok.clone());
+            });
         }
         *state.capture_signature.lock().unwrap() = Some(sig);
         *cap = Some(Arc::new(c));
@@ -173,16 +173,16 @@ pub(crate) fn start_bar_inner(
         .insert(bar_path.to_string(), BarRuntime { device, sync: handle });
     // Remember this mapping for the current monitor setup.
     let sig = monitors::signature();
-    let mut c = read_config();
-    c.upsert_profile_bar(
-        &sig,
-        BarConfig {
-            bar_path: bar_path.to_string(),
-            stream_index,
-            reverse,
-        },
-    );
-    write_config(&c);
+    update_config(|c| {
+        c.upsert_profile_bar(
+            &sig,
+            BarConfig {
+                bar_path: bar_path.to_string(),
+                stream_index,
+                reverse,
+            },
+        );
+    });
     Ok(())
 }
 
@@ -265,9 +265,7 @@ pub(crate) fn cinema_start_inner(
 /// Persist the in-memory device identities into the config.
 pub(crate) fn persist_identities(state: &AppState) {
     let snap = state.ident_cache.lock().unwrap().clone();
-    let mut cfg = read_config();
-    cfg.persist_uuids(&snap);
-    write_config(&cfg);
+    update_config(|cfg| cfg.persist_uuids(&snap));
 }
 
 /// Auto-start the configured sync (used at launch and on hotplug).
@@ -319,9 +317,7 @@ pub(crate) fn set_autostart(enabled: bool) -> Result<(), String> {
     } else if file.exists() {
         std::fs::remove_file(&file).map_err(|e| e.to_string())?;
     }
-    let mut cfg = read_config();
-    cfg.autostart = enabled;
-    write_config(&cfg);
+    update_config(|cfg| cfg.autostart = enabled);
     Ok(())
 }
 

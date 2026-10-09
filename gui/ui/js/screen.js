@@ -101,18 +101,21 @@ export function renderBars() {
     select.addEventListener("change", () => {
       st.stream = parseInt(select.value, 10) || 0;
       titleEl.textContent = `Monitor ${st.stream + 1}`;
+      saveConfig();
     });
     reverse.addEventListener("change", () => {
       st.reverse = reverse.checked;
+      saveConfig();
     });
-    start.addEventListener("click", async () => {
+    row._start = async () => {
+      if (state.streams.length === 0) return;
       start.disabled = true;
       status.textContent = "startet …";
       status.classList.remove("on");
       try {
         await invoke("start_bar", {
           barPath: key,
-          streamIndex: state.rowState[key].stream,
+          streamIndex: st.stream,
           reverse: reverse.checked,
           ...screenSettings(),
         });
@@ -122,7 +125,8 @@ export function renderBars() {
         status.textContent = "Fehler";
         start.disabled = false;
       }
-    });
+    };
+    start.addEventListener("click", () => row._start());
     stop.addEventListener("click", async () => {
       await invoke("stop_bar", { barPath: key }).catch(() => {});
       setRunning(row, false);
@@ -162,9 +166,9 @@ export function initScreen() {
   });
   $("#start-all")?.addEventListener("click", () => {
     if (state.streams.length === 0) return;
-    $$(".bar-start").forEach((button) => {
-      if (!button.disabled) button.click();
-    });
+    // (Re)apply the current mapping to every bar, even if it is already
+    // running, so a changed monitor assignment takes effect immediately.
+    $$(".bar").forEach((row) => row._start?.());
   });
   $("#stop-all")?.addEventListener("click", async () => {
     await invoke("stop_all").catch(() => {});
