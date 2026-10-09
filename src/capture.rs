@@ -328,7 +328,8 @@ fn run_pipewire(
                     };
                     let len = size.min(data.len());
                     let seq = user.frames.fetch_add(1, Ordering::Relaxed);
-                    let mut frame = downsample(data, src_stride, len, user, ch);
+                    let mut frame =
+                        downsample(data, src_stride, len, user.width, user.height, user.format, ch);
                     frame.seq = seq;
                     if let Ok(mut guard) = user.slot.frame.lock() {
                         *guard = Some(Arc::new(frame));
@@ -357,13 +358,21 @@ fn run_pipewire(
 
 /// Downsample a full-resolution frame to at most ~160px wide by point sampling.
 /// Avoids copying ~8 MB per frame and makes border sampling cheap.
-fn downsample(data: &[u8], src_stride: usize, len: usize, user: &StreamUser, ch: usize) -> Frame {
+fn downsample(
+    data: &[u8],
+    src_stride: usize,
+    len: usize,
+    width: usize,
+    height: usize,
+    format: PixelFormat,
+    ch: usize,
+) -> Frame {
     const MAX_W: usize = 160;
-    let scale = (user.width / MAX_W).max(1);
-    let sw = (user.width / scale).max(1);
-    let sh = (user.height / scale).max(1);
+    let scale = (width / MAX_W).max(1);
+    let sw = (width / scale).max(1);
+    let sh = (height / scale).max(1);
     // Rows we can safely read from the mapped chunk.
-    let safe_h = if src_stride > 0 { (len / src_stride).min(user.height) } else { 0 };
+    let safe_h = if src_stride > 0 { (len / src_stride).min(height) } else { 0 };
     let mut out = vec![0u8; sw * sh * ch];
 
     if ch == 4 {
@@ -379,7 +388,7 @@ fn downsample(data: &[u8], src_stride: usize, len: usize, user: &StreamUser, ch:
                 let srow = src.add(sy * src_stride) as *const u32;
                 let orow = y * sw;
                 for x in 0..sw {
-                    let sx = (x * scale).min(user.width - 1);
+                    let sx = (x * scale).min(width - 1);
                     let v = std::ptr::read_unaligned(srow.add(sx));
                     std::ptr::write_unaligned(dst.add(orow + x), v);
                 }
@@ -394,7 +403,7 @@ fn downsample(data: &[u8], src_stride: usize, len: usize, user: &StreamUser, ch:
             let srow = sy * src_stride;
             let orow = y * sw * ch;
             for x in 0..sw {
-                let sx = (x * scale).min(user.width - 1);
+                let sx = (x * scale).min(width - 1);
                 let sidx = srow + sx * ch;
                 let oidx = orow + x * ch;
                 if sidx + ch <= len && oidx + ch <= out.len() {
@@ -408,7 +417,7 @@ fn downsample(data: &[u8], src_stride: usize, len: usize, user: &StreamUser, ch:
         width: sw,
         height: sh,
         stride: sw * ch,
-        format: user.format,
+        format,
         data: out,
         seq: 0,
     }
@@ -466,4 +475,101 @@ fn enum_format_pod() -> Result<Vec<u8>> {
     .0
     .into_inner();
     Ok(values)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame_rgb(w: usize, h: usize, px: impl Fn(usize, usize) -> [u8; 3]) -> Frame {
+        let mut data = vec![0u8; w * h * 3];
+        for y in 0..h {
+            for x in 0..w {
+                let p = px(x, y);
+                let i = y * (w * 3) + x * 3;
+                data[i..i + 3].copy_from_slice(&p);
+            }
+        }
+        Frame { width: w, height: h, stride: w * 3, format: PixelFormat::Rgb, data, seq: 0 }
+    }
+
+    #[test]
+    fn channels_match_pixel_layout() {
+        assert_eq!(PixelFormat::Rgb.channels(), 3);
+        assert_eq!(PixelFormat::Bgr.channels(), 3);
+        for f in [
+            PixelFormat::Rgba,
+            PixelFormat::Bgra,
+            PixelFormat::Rgbx,
+            PixelFormat::Bgrx,
+            PixelFormat::Unknown,
+        ] {
+            assert_eq!(f.channels(), 4, "{f:?}");
+        }
+    }
+
+    #[test]
+    fn pixel_reorders_bgr_to_rgb() {
+        let bgr = Frame {
+            width: 1,
+            height: 1,
+            stride: 3,
+            format: PixelFormat::Bgr,
+            data: vec![10, 20, 30],
+            seq: 0,
+        };
+        assert_eq!(bgr.pixel(0, 0), [30, 20, 10]);
+        let rgb = Frame { format: PixelFormat::Rgb, ..bgr };
+        assert_eq!(rgb.pixel(0, 0), [10, 20, 30]);
+    }
+
+    #[test]
+    fn pixel_out_of_range_is_black() {
+        let f = frame_rgb(2, 2, |x, y| [x as u8, y as u8, 9]);
+        assert_eq!(f.pixel(1, 1), [1, 1, 9]);
+        assert_eq!(f.pixel(2, 1), [0, 0, 0]); // x beyond the row
+        assert_eq!(f.pixel(0, 5), [0, 0, 0]); // y beyond the data
+    }
+
+    #[test]
+    fn downsample_is_identity_when_already_small() {
+        let data: Vec<u8> = (0..(4 * 2 * 3)).map(|i| i as u8).collect();
+        let f = downsample(&data, 12, data.len(), 4, 2, PixelFormat::Rgb, 3);
+        assert_eq!((f.width, f.height, f.stride), (4, 2, 12));
+        assert_eq!(f.data, data);
+    }
+
+    #[test]
+    fn downsample_caps_width_at_160() {
+        let data = vec![7u8; 320 * 2 * 3];
+        let f = downsample(&data, 320 * 3, data.len(), 320, 2, PixelFormat::Rgb, 3);
+        assert_eq!((f.width, f.height), (160, 1));
+        assert_eq!(f.data.len(), 160 * 3);
+        assert!(f.data.iter().all(|&b| b == 7));
+    }
+
+    #[test]
+    fn downsample_fast_path_copies_four_bytes() {
+        let data: Vec<u8> = (0..(2 * 2 * 4)).map(|i| i as u8).collect();
+        let f = downsample(&data, 8, data.len(), 2, 2, PixelFormat::Bgrx, 4);
+        assert_eq!((f.width, f.height, f.stride), (2, 2, 8));
+        assert_eq!(f.data, data);
+    }
+
+    #[test]
+    fn downsample_clamps_to_available_rows() {
+        // Stride claims four rows but only one row's worth of bytes is mapped;
+        // the sampler must never read past `len` and clamps to the last row.
+        let data = vec![5u8; 12];
+        let f = downsample(&data, 12, data.len(), 4, 4, PixelFormat::Rgb, 3);
+        assert_eq!((f.width, f.height), (4, 4));
+        assert!(f.data.iter().all(|&b| b == 5));
+    }
+
+    #[test]
+    fn downsample_zero_size_does_not_panic() {
+        let f = downsample(&[], 0, 0, 0, 0, PixelFormat::Unknown, 4);
+        assert_eq!(f.data.len(), 4);
+        assert!(f.data.iter().all(|&b| b == 0));
+    }
 }
