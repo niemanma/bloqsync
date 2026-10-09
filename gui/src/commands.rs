@@ -108,6 +108,7 @@ pub(crate) fn start_bar(
     filter_strength: Option<u8>,
     max_frames: Option<usize>,
 ) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     let settings = BarSettings {
@@ -181,6 +182,8 @@ pub(crate) fn set_brightness(state: State<AppState>, value: u8) -> Result<(), St
 /// overwritten. Restart with [`resume_sync`].
 #[tauri::command]
 pub(crate) fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
+    runtime::cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = true;
     runtime::stop_all_inner(&state);
     for info in enumerate() {
@@ -194,6 +197,7 @@ pub(crate) fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Resu
 /// Resume screen sync after a static colour was shown.
 #[tauri::command]
 pub(crate) fn resume_sync(state: State<AppState>) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     runtime::autostart_run_inner(&state)
@@ -212,6 +216,7 @@ pub(crate) fn cinema_start(
     smooth: Option<f32>,
     contrast: Option<f32>,
 ) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
     runtime::cinema_start_inner(
         &state,
         sensitivity.unwrap_or(1.0),
@@ -275,7 +280,9 @@ pub(crate) fn identify_bar(
             let _ = d.set_persistent_color([0, 0, 0]);
         }
         let st = handle.state::<AppState>();
-        if was_running {
+        // Only restore the previous sync when the blink finished on its own;
+        // an explicit stop (starting another mode) must not fight the caller.
+        if was_running && running_t.load(Ordering::Relaxed) {
             *st.sync_paused.lock().unwrap() = false;
             let _ = runtime::autostart_run_inner(&st);
         }

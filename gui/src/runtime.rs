@@ -105,6 +105,17 @@ pub(crate) fn stop_all_inner(state: &AppState) {
     }
 }
 
+/// Stop a running identify/blink loop and wait for it to finish. The identify
+/// thread deliberately does not restore the previous sync when stopped this
+/// way, so the caller can start the desired mode instead.
+pub(crate) fn stop_identify_inner(state: &AppState) {
+    if let Some(rt) = state.identify.lock().unwrap().take() {
+        rt.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        let _ = rt.thread.join();
+    }
+}
+
 pub(crate) fn start_bar_inner(
     state: &AppState,
     bar_path: &str,
@@ -195,9 +206,8 @@ pub(crate) fn cinema_start_inner(
     cinema_stop_inner(state);
     *state.sync_paused.lock().unwrap() = true;
     stop_all_inner(state);
-    // Free the screen capture while in cinema mode.
-    *state.capture.lock().unwrap() = None;
-    *state.capture_signature.lock().unwrap() = None;
+    // Keep the screen capture (and therefore the monitor assignment) alive so
+    // switching back to screen sync does not require reconnecting monitors.
 
     let audio = bloqsync::audio::start(None).map_err(|e| e.to_string())?;
     let spectrum = audio.spectrum.clone();
