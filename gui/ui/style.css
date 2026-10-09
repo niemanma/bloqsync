@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #0f1014;
   --surface: #17181d;
   --surface-2: #1e2027;
@@ -78,6 +79,7 @@ body {
   transition: .15s;
 }
 .icon-btn:hover { color: var(--fg); background: var(--surface-2); }
+.icon-btn svg { display: block; }
 .icon-btn[aria-pressed="true"] {
   color: var(--accent-fg);
   background: var(--accent);
@@ -211,6 +213,15 @@ input[type="number"], input[type="text"], select {
   border-radius: 9px;
   padding: 9px 10px;
   font-size: 14px;
+}
+select option {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+select option:checked,
+select option:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 input[type="color"] {
   width: 46px; height: 40px; padding: 0;

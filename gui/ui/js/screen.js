@@ -44,6 +44,15 @@ export function renderBars() {
         reverse: saved?.reverse ?? true,
       };
     }
+    const st = state.rowState[key];
+    // Keep the assignment valid when the set of monitors changed.
+    if (state.streams.length && !state.streams.some((s) => s.index === st.stream)) {
+      st.stream = state.streams[Math.min(i, state.streams.length - 1)].index;
+    }
+    // Name each bar after the monitor it is assigned to; before a capture is
+    // open we can only fall back to a sequential label.
+    const title = state.streams.length ? `Monitor ${st.stream + 1}` : `Leiste ${i + 1}`;
+
     const row = document.createElement("div");
     row.className = "bar";
     row._key = key;
@@ -53,14 +62,19 @@ export function renderBars() {
       : "";
     row.innerHTML = `
       <div>
-        <div class="bar-title">Leiste ${i + 1}</div>
+        <div class="bar-title">${title}</div>
         ${sub}
-        <label class="mini-check"><input type="checkbox" class="bar-rev" ${state.rowState[key].reverse ? "checked" : ""}/> gespiegelt</label>
+        <label class="mini-check"><input type="checkbox" class="bar-rev" ${st.reverse ? "checked" : ""}/> gespiegelt</label>
       </div>
       <select class="bar-stream"></select>
       <span class="bar-status">—</span>
       <div class="bar-actions">
-        <button class="icon-btn bar-identify" type="button" data-tip="Diese Leiste kurz blinken lassen">✨</button>
+        <button class="icon-btn bar-identify" type="button" data-tip="Diese Leiste kurz blinken lassen" aria-label="Leiste blinken lassen">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18h6"/><path d="M10 22h4"/>
+            <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>
+          </svg>
+        </button>
         <button class="btn primary bar-start" type="button">Start</button>
         <button class="btn bar-stop" type="button" disabled>Stop</button>
       </div>`;
@@ -73,21 +87,23 @@ export function renderBars() {
     } else {
       state.streams.forEach((stream) => {
         const option = new Option(monitorOptionLabel(stream, state.expert), String(stream.index));
-        if (stream.index === state.rowState[key].stream) option.selected = true;
+        if (stream.index === st.stream) option.selected = true;
         select.appendChild(option);
       });
     }
 
+    const titleEl = row.querySelector(".bar-title");
     const reverse = row.querySelector(".bar-rev");
     const start = row.querySelector(".bar-start");
     const stop = row.querySelector(".bar-stop");
     const status = row.querySelector(".bar-status");
 
     select.addEventListener("change", () => {
-      state.rowState[key].stream = parseInt(select.value, 10) || 0;
+      st.stream = parseInt(select.value, 10) || 0;
+      titleEl.textContent = `Monitor ${st.stream + 1}`;
     });
     reverse.addEventListener("change", () => {
-      state.rowState[key].reverse = reverse.checked;
+      st.reverse = reverse.checked;
     });
     start.addEventListener("click", async () => {
       start.disabled = true;
