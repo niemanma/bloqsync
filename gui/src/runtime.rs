@@ -116,31 +116,10 @@ pub(crate) fn stop_identify_inner(state: &AppState) {
     }
 }
 
-pub(crate) fn start_bar_inner(
-    state: &AppState,
-    bar_path: &str,
-    stream_index: usize,
-    reverse: bool,
-    settings: &BarSettings,
-) -> Result<(), String> {
-    let cap = state
-        .capture
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| "Aufnahme nicht gestartet".to_string())?;
-    let slot = cap
-        .slots
-        .get(stream_index)
-        .cloned()
-        .ok_or_else(|| format!("Stream {stream_index} existiert nicht"))?;
-
-    if let Some(prev) = state.bars.lock().unwrap().remove(bar_path) {
-        prev.sync.stop();
-    }
-
-    let info = find_by_identity(bar_path)
-        .ok_or_else(|| "Leiste nicht gefunden".to_string())?;
+/// Find, open and remember the device for `bar_path`, updating the identity
+/// cache so the UI keeps a stable key for it.
+fn open_bar_device(state: &AppState, bar_path: &str) -> Result<Arc<Device>, String> {
+    let info = find_by_identity(bar_path).ok_or_else(|| "Leiste nicht gefunden".to_string())?;
     let device = Arc::new(Device::open(&info).map_err(|e| e.to_string())?);
     state.ident_cache.lock().unwrap().insert(
         device.info.id.clone(),
@@ -151,6 +130,49 @@ pub(crate) fn start_bar_inner(
         },
     );
     persist_identities(state);
+    Ok(device)
+}
+
+/// Remember a bar → monitor mapping for the current monitor setup.
+fn remember_mapping(bar_path: &str, stream_index: usize, reverse: bool) {
+    let sig = monitors::signature();
+    update_config(|c| {
+        c.upsert_profile_bar(
+            &sig,
+            BarConfig {
+                bar_path: bar_path.to_string(),
+                stream_index,
+                reverse,
+            },
+        );
+    });
+}
+
+/// Start (or restart) screen sync for one bar on `stream_index`.
+pub(crate) fn start_bar_inner(
+    state: &AppState,
+    bar_path: &str,
+    stream_index: usize,
+    reverse: bool,
+    settings: &BarSettings,
+) -> Result<(), String> {
+    let capture = state
+        .capture
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "Aufnahme nicht gestartet".to_string())?;
+    let slot = capture
+        .slots
+        .get(stream_index)
+        .cloned()
+        .ok_or_else(|| format!("Stream {stream_index} existiert nicht"))?;
+
+    if let Some(prev) = state.bars.lock().unwrap().remove(bar_path) {
+        prev.sync.stop();
+    }
+
+    let device = open_bar_device(state, bar_path)?;
     if let Some(b) = settings.brightness {
         let _ = device.set_brightness(b);
     }
@@ -165,24 +187,13 @@ pub(crate) fn start_bar_inner(
         layout: settings.layout,
         ..Default::default()
     };
-    let handle = spawn(device.clone(), slot, cfg).map_err(|e| e.to_string())?;
+    let sync = spawn(device.clone(), slot, cfg).map_err(|e| e.to_string())?;
     state
         .bars
         .lock()
         .unwrap()
-        .insert(bar_path.to_string(), BarRuntime { device, sync: handle });
-    // Remember this mapping for the current monitor setup.
-    let sig = monitors::signature();
-    update_config(|c| {
-        c.upsert_profile_bar(
-            &sig,
-            BarConfig {
-                bar_path: bar_path.to_string(),
-                stream_index,
-                reverse,
-            },
-        );
-    });
+        .insert(bar_path.to_string(), BarRuntime { device, sync });
+    remember_mapping(bar_path, stream_index, reverse);
     Ok(())
 }
 
@@ -369,58 +380,65 @@ pub(crate) fn spawn_hotplug(app: tauri::AppHandle) {
 pub(crate) fn spawn_watchdog(app: tauri::AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
-        let cfg = read_config();
-        if !cfg.autostart_sync {
-            continue;
-        }
-        let state = app.state::<AppState>();
-        if *state.sync_paused.lock().unwrap() {
-            continue;
-        }
-        let sig = monitors::signature();
-        if sig.is_empty() {
-            continue;
-        }
-        // Does the open capture still match the current setup?
-        let stale = {
-            let cap_open = state.capture.lock().unwrap().is_some();
-            let cap_sig = state.capture_signature.lock().unwrap().clone();
-            cap_open && cap_sig.as_deref() != Some(sig.as_str())
-        };
-        if stale {
-            log(&format!("setup changed -> {sig}: restarting capture"));
-            stop_all_inner(&state);
-            *state.capture.lock().unwrap() = None;
-            *state.capture_signature.lock().unwrap() = None;
-        }
-        // Only act on setups we have a profile for (no dialog surprises).
-        let prof = match cfg.active_profile(&sig).cloned() {
-            Some(p) => p,
-            None => continue,
-        };
-        if state.capture.lock().unwrap().is_none() {
-            if let Err(e) = open_capture_with(&state, prof.restore_token.clone()) {
-                log(&format!("bloqsync: watchdog capture: {e}"));
-                continue;
-            }
-        }
-        let settings = BarSettings::from_config(&cfg);
-        for b in &prof.bars {
-            let need = {
-                let bars = state.bars.lock().unwrap();
-                match bars.get(&b.bar_path) {
-                    Some(rt) => !rt.sync.is_running(),
-                    None => true,
-                }
-            };
-            if need {
-                match start_bar_inner(&state, &b.bar_path, b.stream_index, b.reverse, &settings) {
-                    Ok(()) => log(&format!("bloqsync: watchdog started {}", b.bar_path)),
-                    Err(e) => log(&format!("bloqsync: watchdog {}: {e}", b.bar_path)),
-                }
-            }
-        }
+        watchdog_tick(&app);
     });
+}
+
+/// True if the open capture no longer matches the current monitor setup.
+fn capture_is_stale(state: &AppState, sig: &str) -> bool {
+    let cap_open = state.capture.lock().unwrap().is_some();
+    let cap_sig = state.capture_signature.lock().unwrap().clone();
+    cap_open && cap_sig.as_deref() != Some(sig)
+}
+
+/// True if `bar_path` is configured but not currently running.
+fn bar_needs_start(state: &AppState, bar_path: &str) -> bool {
+    let bars = state.bars.lock().unwrap();
+    match bars.get(bar_path) {
+        Some(rt) => !rt.sync.is_running(),
+        None => true,
+    }
+}
+
+fn watchdog_tick(app: &tauri::AppHandle) {
+    let cfg = read_config();
+    if !cfg.autostart_sync {
+        return;
+    }
+    let state = app.state::<AppState>();
+    if *state.sync_paused.lock().unwrap() {
+        return;
+    }
+    let sig = monitors::signature();
+    if sig.is_empty() {
+        return;
+    }
+    if capture_is_stale(&state, &sig) {
+        log(&format!("setup changed -> {sig}: restarting capture"));
+        stop_all_inner(&state);
+        *state.capture.lock().unwrap() = None;
+        *state.capture_signature.lock().unwrap() = None;
+    }
+    // Only act on setups we have a profile for (no dialog surprises).
+    let prof = match cfg.active_profile(&sig).cloned() {
+        Some(p) => p,
+        None => return,
+    };
+    if state.capture.lock().unwrap().is_none() {
+        if let Err(e) = open_capture_with(&state, prof.restore_token.clone()) {
+            log(&format!("bloqsync: watchdog capture: {e}"));
+            return;
+        }
+    }
+    let settings = BarSettings::from_config(&cfg);
+    for b in &prof.bars {
+        if bar_needs_start(&state, &b.bar_path) {
+            match start_bar_inner(&state, &b.bar_path, b.stream_index, b.reverse, &settings) {
+                Ok(()) => log(&format!("bloqsync: watchdog started {}", b.bar_path)),
+                Err(e) => log(&format!("bloqsync: watchdog {}: {e}", b.bar_path)),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
