@@ -1,5 +1,6 @@
 //! Tauri commands exposed to the UI. Thin adapters over [`crate::runtime`].
 
+use crate::bar_models::{self, BarModel};
 use crate::config::{read_config, update_config, Config, Ident, Preset};
 use crate::logging::log;
 use crate::monitors;
@@ -107,6 +108,7 @@ pub(crate) fn start_bar(
     filter: Option<String>,
     filter_strength: Option<u8>,
     max_frames: Option<usize>,
+    model_id: Option<String>,
 ) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
@@ -120,7 +122,7 @@ pub(crate) fn start_bar(
         filter_strength: filter_strength.unwrap_or(8),
         max_frames: max_frames.unwrap_or(0),
     };
-    runtime::start_bar_inner(&state, &bar_path, stream_index, reverse, &settings)
+    runtime::start_bar_inner(&state, &bar_path, stream_index, reverse, model_id, &settings)
 }
 
 #[tauri::command]
@@ -339,4 +341,23 @@ pub(crate) fn delete_preset(name: String) -> Result<(), String> {
 #[tauri::command]
 pub(crate) fn rename_preset(old: String, new: String) -> Result<bool, String> {
     Ok(update_config(|cfg| cfg.rename_preset(&old, &new)))
+}
+
+#[tauri::command]
+pub(crate) fn list_bar_models() -> Vec<BarModel> {
+    let mut models = bar_models::builtin();
+    models.extend(read_config().bar_models);
+    models
+}
+
+#[tauri::command]
+pub(crate) fn save_bar_model(model: BarModel) -> Result<(), String> {
+    update_config(|cfg| cfg.upsert_bar_model(model));
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn delete_bar_model(id: String) -> Result<(), String> {
+    update_config(|cfg| cfg.remove_bar_model(&id));
+    Ok(())
 }

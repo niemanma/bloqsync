@@ -3,6 +3,7 @@
 import { invoke } from "./api.js";
 import { $, escapeHtml } from "./util.js";
 import { state, saveConfig, setExpert } from "./state.js";
+import { t } from "./i18n.js";
 
 // Controls whose `change` should persist the config.
 const PERSISTED_CONTROLS = [
@@ -16,7 +17,7 @@ export function renderDevices() {
   const box = $("#device-list");
   if (!box) return;
   if (state.devices.length === 0) {
-    box.innerHTML = `<p class="preset-empty">Keine Leiste gefunden.</p>`;
+    box.innerHTML = `<p class="preset-empty">${t("devices.none")}</p>`;
     return;
   }
   box.innerHTML = state.devices.map((device) => `

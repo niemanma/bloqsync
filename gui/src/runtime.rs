@@ -134,7 +134,7 @@ fn open_bar_device(state: &AppState, bar_path: &str) -> Result<Arc<Device>, Stri
 }
 
 /// Remember a bar → monitor mapping for the current monitor setup.
-fn remember_mapping(bar_path: &str, stream_index: usize, reverse: bool) {
+fn remember_mapping(bar_path: &str, stream_index: usize, reverse: bool, model_id: Option<String>) {
     let sig = monitors::signature();
     update_config(|c| {
         c.upsert_profile_bar(
@@ -143,6 +143,7 @@ fn remember_mapping(bar_path: &str, stream_index: usize, reverse: bool) {
                 bar_path: bar_path.to_string(),
                 stream_index,
                 reverse,
+                model_id,
             },
         );
     });
@@ -154,6 +155,7 @@ pub(crate) fn start_bar_inner(
     bar_path: &str,
     stream_index: usize,
     reverse: bool,
+    model_id: Option<String>,
     settings: &BarSettings,
 ) -> Result<(), String> {
     let capture = state
@@ -193,7 +195,7 @@ pub(crate) fn start_bar_inner(
         .lock()
         .unwrap()
         .insert(bar_path.to_string(), BarRuntime { device, sync });
-    remember_mapping(bar_path, stream_index, reverse);
+    remember_mapping(bar_path, stream_index, reverse, model_id);
     Ok(())
 }
 
@@ -299,7 +301,14 @@ pub(crate) fn autostart_run_inner(state: &AppState) -> Result<(), String> {
     open_capture_with(state, token)?;
     let settings = BarSettings::from_config(&cfg);
     for b in &bars {
-        let _ = start_bar_inner(state, &b.bar_path, b.stream_index, b.reverse, &settings);
+        let _ = start_bar_inner(
+            state,
+            &b.bar_path,
+            b.stream_index,
+            b.reverse,
+            b.model_id.clone(),
+            &settings,
+        );
     }
     Ok(())
 }
@@ -433,7 +442,14 @@ fn watchdog_tick(app: &tauri::AppHandle) {
     let settings = BarSettings::from_config(&cfg);
     for b in &prof.bars {
         if bar_needs_start(&state, &b.bar_path) {
-            match start_bar_inner(&state, &b.bar_path, b.stream_index, b.reverse, &settings) {
+            match start_bar_inner(
+                &state,
+                &b.bar_path,
+                b.stream_index,
+                b.reverse,
+                b.model_id.clone(),
+                &settings,
+            ) {
                 Ok(()) => log(&format!("bloqsync: watchdog started {}", b.bar_path)),
                 Err(e) => log(&format!("bloqsync: watchdog {}: {e}", b.bar_path)),
             }

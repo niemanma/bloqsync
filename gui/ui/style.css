@@ -98,6 +98,15 @@ body {
 }
 .icon-btn:hover { color: var(--fg); background: var(--surface-2); }
 .icon-btn svg { display: block; }
+.lang-select {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
 .icon-btn[aria-pressed="true"] {
   color: var(--accent-fg);
   background: var(--accent);
@@ -320,7 +329,7 @@ input[type="color"] {
 .bars { display: flex; flex-direction: column; gap: 10px; }
 .bar {
   display: grid;
-  grid-template-columns: minmax(130px, 1.1fr) minmax(140px, 1fr) auto auto;
+  grid-template-columns: minmax(120px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) auto auto;
   gap: 12px;
   align-items: center;
   background: var(--surface-2);
@@ -341,6 +350,7 @@ input[type="color"] {
   cursor: pointer;
 }
 .mini-check input { accent-color: var(--accent); }
+.bar-warn { display: block; margin-top: 4px; font-size: 11px; color: var(--warn); }
 
 /* ── Swatches ────────────────────────────────────────────── */
 .swatches { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
@@ -389,6 +399,7 @@ input[type="color"] {
 /* ── Profile chip / status ───────────────────────────────── */
 .profile-chip {
   display: inline-flex; align-items: center;
+  flex: 0 0 auto;
   padding: 6px 11px;
   border: 1px solid var(--border);
   border-radius: 999px;

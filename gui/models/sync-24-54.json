@@ -1,0 +1,9 @@
+{
+  "id": "sync-24-54",
+  "name": "24\" SyncLight (54 LEDs)",
+  "leds": 54,
+  "left": 14,
+  "top": 26,
+  "bottom": 0,
+  "right": 14
+}

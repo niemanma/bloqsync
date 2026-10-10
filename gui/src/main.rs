@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod bar_models;
 mod config;
 mod logging;
 mod monitors;
@@ -35,7 +36,10 @@ fn main() {
             commands::list_presets,
             commands::save_preset,
             commands::delete_preset,
-            commands::rename_preset
+            commands::rename_preset,
+            commands::list_bar_models,
+            commands::save_bar_model,
+            commands::delete_bar_model
         ])
         .setup(|app| {
             runtime::seed_ident_cache(app.handle());

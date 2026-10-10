@@ -3,13 +3,15 @@
 import { invoke, listen } from "./js/api.js";
 import { $, $$, bindSlider } from "./js/util.js";
 import {
-  state, loadConfig, loadDevices, loadPresets, setExpert, setMode, restoreActivePreset,
+  state, loadConfig, loadDevices, loadPresets, loadBarModels, setExpert, setMode, restoreActivePreset,
 } from "./js/state.js";
 import { initScreen, renderBars, renderCaptureState } from "./js/screen.js";
 import { initCinema } from "./js/cinema.js";
 import { initColor } from "./js/color.js";
 import { initProfiles, renderPresets, renderProfileStatus } from "./js/profiles.js";
 import { initSettings, renderDevices } from "./js/settings.js";
+import { initModels, renderModels } from "./js/models.js";
+import { initLanguage, t, setLanguage, availableLanguages, getLanguage } from "./js/i18n.js";
 
 function bindOutputs() {
   bindSlider("fps", "fps-out", (v) => v);
@@ -30,17 +32,28 @@ function renderStatus(st) {
   const text = $("#status-text");
   if (st.cinema) {
     dot.className = "dot on";
-    text.textContent = "Kino-Modus";
+    text.textContent = t("app.status.cinema");
   } else if (st.paused) {
     dot.className = "dot warn";
-    text.textContent = "Statische Farbe";
+    text.textContent = t("app.status.color");
   } else if (running) {
     dot.className = "dot on";
-    text.textContent = `${running} Leiste(n) synchron`;
+    text.textContent = t("app.status.syncing", { n: running });
   } else {
     dot.className = "dot";
-    text.textContent = "inaktiv";
+    text.textContent = t("app.status.idle");
   }
+}
+
+function initLanguageSelect() {
+  const select = $("#lang-select");
+  if (!select) return;
+  const names = { en: "English", de: "Deutsch" };
+  availableLanguages().forEach((code) => {
+    select.appendChild(new Option(names[code] || code.toUpperCase(), code));
+  });
+  select.value = getLanguage();
+  select.addEventListener("change", () => setLanguage(select.value));
 }
 
 async function statusTick() {
@@ -56,6 +69,8 @@ async function statusTick() {
 }
 
 async function boot() {
+  initLanguage();
+  initLanguageSelect();
   bindOutputs();
   $$("#mode-tabs .seg").forEach((btn) =>
     btn.addEventListener("click", () => setMode(btn.dataset.mode)));
@@ -67,12 +82,15 @@ async function boot() {
   initColor();
   initProfiles();
   initSettings();
+  initModels();
 
   await loadConfig();
   await loadPresets();
+  await loadBarModels();
   restoreActivePreset();
   renderPresets();
   renderProfileStatus();
+  renderModels();
   await loadDevices();
   renderDevices();
   renderCaptureState();
@@ -90,6 +108,15 @@ async function boot() {
       renderCaptureState();
     });
   } catch (_) { /* event API unavailable */ }
+
+  window.addEventListener("language-changed", () => {
+    renderBars();
+    renderDevices();
+    renderPresets();
+    renderProfileStatus();
+    renderModels();
+    statusTick();
+  });
 
   statusTick();
   setInterval(statusTick, 800);

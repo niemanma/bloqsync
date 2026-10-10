@@ -8,7 +8,8 @@ export const state = {
   streams: [],
   config: null,
   presets: [],
-  rowState: {},       // bar key -> { stream, reverse }
+  barModels: [],
+  rowState: {},       // bar key -> { stream, reverse, modelId }
   activeMode: "screen",
   expert: false,
   activePreset: null,     // name of the loaded profile (or null)
@@ -159,8 +160,34 @@ export function currentBars() {
       bar_path: key,
       stream_index: state.rowState[key]?.stream ?? 0,
       reverse: state.rowState[key]?.reverse ?? true,
+      model_id: state.rowState[key]?.modelId ?? defaultModelId(),
     };
   });
+}
+
+// ── Bar models ──────────────────────────────────────────────────────
+
+export function defaultModelId() {
+  return state.barModels[0]?.id ?? null;
+}
+
+export function modelById(id) {
+  return state.barModels.find((m) => m.id === id) || state.barModels[0] || null;
+}
+
+export async function loadBarModels() {
+  state.barModels = await invoke("list_bar_models").catch(() => state.barModels);
+  return state.barModels;
+}
+
+export async function saveBarModel(model) {
+  await invoke("save_bar_model", { model });
+  await loadBarModels();
+}
+
+export async function deleteBarModel(id) {
+  await invoke("delete_bar_model", { id });
+  await loadBarModels();
 }
 
 export function currentConfig() {
@@ -195,6 +222,14 @@ export async function loadConfig() {
 export async function loadDevices() {
   state.devices = await invoke("list_devices").catch(() => state.devices);
   return state.devices;
+}
+
+/** Reload the raw config (e.g. the user bar-model list) without touching the form. */
+export async function reloadConfigRaw() {
+  try {
+    state.config = await invoke("get_config");
+  } catch (_) { /* keep the current value */ }
+  return state.config;
 }
 
 export async function loadPresets() {

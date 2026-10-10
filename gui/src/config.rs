@@ -3,6 +3,7 @@
 //! The schema is append-only for compatibility: every field added after the
 //! first release carries `#[serde(default)]`, so old config files keep loading.
 
+use crate::bar_models::BarModel;
 use bloqsync::sampling::Layout;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -26,6 +27,9 @@ pub(crate) struct BarConfig {
     pub(crate) bar_path: String,
     pub(crate) stream_index: usize,
     pub(crate) reverse: bool,
+    /// Selected bar model id (see [`crate::bar_models`]); `None` = default.
+    #[serde(default)]
+    pub(crate) model_id: Option<String>,
 }
 
 /// A saved mapping for one monitor setup (identified by `signature`).
@@ -94,6 +98,9 @@ pub(crate) struct Config {
     /// User-named setting presets.
     #[serde(default)]
     pub(crate) presets: Vec<Preset>,
+    /// User-defined bar models (in addition to the built-in ones).
+    #[serde(default)]
+    pub(crate) bar_models: Vec<BarModel>,
     /// Persistent mapping USB-port id -> device UUID + info.
     #[serde(default)]
     pub(crate) bar_uuids: HashMap<String, Ident>,
@@ -166,6 +173,7 @@ impl Default for Config {
             autostart_sync: false,
             profiles: Vec::new(),
             presets: Vec::new(),
+            bar_models: Vec::new(),
             bar_uuids: HashMap::new(),
             custom_color: default_custom_color(),
             cinema_color: default_cinema_color(),
@@ -258,6 +266,22 @@ impl Config {
 
     pub(crate) fn remove_preset(&mut self, name: &str) {
         self.presets.retain(|p| p.name != name);
+    }
+
+    /// Add or replace a user-defined bar model (built-in models cannot be
+    /// edited, so a colliding id is treated as a new user override).
+    pub(crate) fn upsert_bar_model(&mut self, model: BarModel) {
+        if !model.valid() {
+            return;
+        }
+        match self.bar_models.iter_mut().find(|m| m.id == model.id) {
+            Some(existing) => *existing = model,
+            None => self.bar_models.push(model),
+        }
+    }
+
+    pub(crate) fn remove_bar_model(&mut self, id: &str) {
+        self.bar_models.retain(|m| m.id != id);
     }
 
     /// Rename a preset. Returns `false` for a blank name, an unchanged name or
@@ -359,7 +383,7 @@ mod tests {
     use super::*;
 
     fn bar(path: &str, stream: usize, reverse: bool) -> BarConfig {
-        BarConfig { bar_path: path.into(), stream_index: stream, reverse }
+        BarConfig { bar_path: path.into(), stream_index: stream, reverse, model_id: None }
     }
 
     #[test]

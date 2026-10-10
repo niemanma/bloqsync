@@ -2,14 +2,31 @@
 
 import { invoke } from "./api.js";
 import { $, $$, escapeHtml } from "./util.js";
-import { state, cfg, screenSettings, saveConfig } from "./state.js";
+import { state, cfg, screenSettings, saveConfig, modelById, defaultModelId } from "./state.js";
 import { monitorOptionLabel, renderMonmap } from "./monitors.js";
+import { t } from "./i18n.js";
+
+/** Human-readable model conflict (empty when everything lines up). */
+function modelWarning(model, device) {
+  if (!model) return "";
+  const sum = model.left + model.top + model.bottom + model.right;
+  const messages = [];
+  if (model.leds !== device.leds) {
+    messages.push(t("bar.warnModelLeds", { model: model.leds, bar: device.leds }));
+  }
+  if (sum !== model.leds) {
+    messages.push(t("bar.warnDist", {
+      l: model.left, t: model.top, b: model.bottom, r: model.right, sum, leds: model.leds,
+    }));
+  }
+  return messages.join(" · ");
+}
 
 function setRunning(row, running) {
   row.querySelector(".bar-start").disabled = running;
   row.querySelector(".bar-stop").disabled = !running;
   const status = row.querySelector(".bar-status");
-  status.textContent = running ? "läuft" : "—";
+  status.textContent = running ? t("bar.running") : "—";
   status.classList.toggle("on", running);
 }
 
@@ -31,7 +48,7 @@ export function renderBars() {
   if (!box) return;
   box.innerHTML = "";
   if (state.devices.length === 0) {
-    box.innerHTML = `<p class="preset-empty">Keine Leiste gefunden – stecke deine SyncLight an.</p>`;
+    box.innerHTML = `<p class="preset-empty">${t("devices.none")}</p>`;
     return;
   }
 
@@ -42,6 +59,7 @@ export function renderBars() {
       state.rowState[key] = {
         stream: saved?.stream_index ?? i,
         reverse: saved?.reverse ?? true,
+        modelId: saved?.model_id ?? defaultModelId(),
       };
     }
     const st = state.rowState[key];
@@ -51,7 +69,9 @@ export function renderBars() {
     }
     // Name each bar after the monitor it is assigned to; before a capture is
     // open we can only fall back to a sequential label.
-    const title = state.streams.length ? `Monitor ${st.stream + 1}` : `Leiste ${i + 1}`;
+    const title = state.streams.length
+      ? t("bar.monitor", { n: st.stream + 1 })
+      : t("bar.fallbackName", { n: i + 1 });
 
     const row = document.createElement("div");
     row.className = "bar";
@@ -64,12 +84,14 @@ export function renderBars() {
       <div>
         <div class="bar-title">${title}</div>
         ${sub}
-        <label class="mini-check"><input type="checkbox" class="bar-rev" ${st.reverse ? "checked" : ""}/> gespiegelt</label>
+        <label class="mini-check"><input type="checkbox" class="bar-rev" ${st.reverse ? "checked" : ""}/> ${t("bar.mirror")}</label>
+        <span class="bar-warn"></span>
       </div>
       <select class="bar-stream"></select>
+      <select class="bar-model" data-tip="${t("bar.modelTip")}"></select>
       <span class="bar-status">—</span>
       <div class="bar-actions">
-        <button class="icon-btn bar-identify" type="button" data-tip="Diese Leiste kurz blinken lassen" aria-label="Leiste blinken lassen">
+        <button class="icon-btn bar-identify" type="button" data-tip="${t("bar.identifyTip")}" aria-label="${t("bar.identifyTip")}">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 18h6"/><path d="M10 22h4"/>
             <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>
@@ -81,7 +103,7 @@ export function renderBars() {
 
     const select = row.querySelector(".bar-stream");
     if (state.streams.length === 0) {
-      select.appendChild(new Option("Erst Monitore verbinden", ""));
+      select.appendChild(new Option(t("bar.connectFirst"), ""));
       select.disabled = true;
       row.querySelector(".bar-start").disabled = true;
     } else {
@@ -92,15 +114,36 @@ export function renderBars() {
       });
     }
 
+    // Bar model dropdown.
+    const modelSelect = row.querySelector(".bar-model");
+    state.barModels.forEach((model) => {
+      const option = new Option(model.name, model.id);
+      if (model.id === st.modelId) option.selected = true;
+      modelSelect.appendChild(option);
+    });
+
     const titleEl = row.querySelector(".bar-title");
+    const warnEl = row.querySelector(".bar-warn");
     const reverse = row.querySelector(".bar-rev");
     const start = row.querySelector(".bar-start");
     const stop = row.querySelector(".bar-stop");
     const status = row.querySelector(".bar-status");
+    const refreshWarning = () => {
+      const warning = modelWarning(modelById(st.modelId), device);
+      warnEl.textContent = warning ? "⚠ " + warning : "";
+      warnEl.title = warning;
+      warnEl.classList.toggle("hidden", !warning);
+    };
+    refreshWarning();
 
     select.addEventListener("change", () => {
       st.stream = parseInt(select.value, 10) || 0;
-      titleEl.textContent = `Monitor ${st.stream + 1}`;
+      titleEl.textContent = t("bar.monitor", { n: st.stream + 1 });
+      saveConfig();
+    });
+    modelSelect.addEventListener("change", () => {
+      st.modelId = modelSelect.value;
+      refreshWarning();
       saveConfig();
     });
     reverse.addEventListener("change", () => {
@@ -110,19 +153,25 @@ export function renderBars() {
     row._start = async () => {
       if (state.streams.length === 0) return;
       start.disabled = true;
-      status.textContent = "startet …";
+      status.textContent = t("bar.starting");
       status.classList.remove("on");
+      const model = modelById(st.modelId);
       try {
         await invoke("start_bar", {
           barPath: key,
           streamIndex: st.stream,
           reverse: reverse.checked,
           ...screenSettings(),
+          left: model.left,
+          top: model.top,
+          right: model.right,
+          bottom: model.bottom,
+          modelId: st.modelId,
         });
         setRunning(row, true);
         await saveConfig();
       } catch (error) {
-        status.textContent = "Fehler";
+        status.textContent = t("bar.error");
         start.disabled = false;
       }
     };
@@ -143,7 +192,7 @@ async function openCapture() {
   const button = $("#connect-monitors");
   if (button) {
     button.disabled = true;
-    button.textContent = "Bitte Monitore im Dialog wählen …";
+    button.textContent = t("screen.connectBusy");
   }
   try {
     state.streams = await invoke("open_capture");
@@ -152,7 +201,7 @@ async function openCapture() {
   }
   if (button) {
     button.disabled = false;
-    button.textContent = "Monitore verbinden";
+    button.textContent = t("screen.connect");
   }
   renderCaptureState();
 }

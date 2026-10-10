@@ -7,12 +7,15 @@ import {
   renameProfile, deleteProfile, setActivePreset, isProfileDirty, profileExists,
 } from "./state.js";
 import { renderBars } from "./screen.js";
+import { t } from "./i18n.js";
 
 /** Update the top chip and the card header to show the active profile. */
 export function renderProfileStatus() {
   const active = state.activePreset;
   const dirty = isProfileDirty();
-  const label = dirty && active ? `custom (${active})` : (active || "custom");
+  const label = dirty && active
+    ? `${t("profiles.custom")} (${active})`
+    : (active || t("profiles.custom"));
 
   const chip = $("#profile-chip");
   if (chip) {
@@ -50,7 +53,7 @@ async function newFromInput() {
     return;
   }
   if (profileExists(name)) {
-    alert(`Ein Profil "${name}" existiert bereits.`);
+    alert(t("profiles.exists", { name }));
     return;
   }
   await createProfile(name);
@@ -74,7 +77,7 @@ export function renderPresets() {
   const box = $("#preset-list");
   if (!box) return;
   if (state.presets.length === 0) {
-    box.innerHTML = `<p class="preset-empty">Noch keine Profile gespeichert.</p>`;
+    box.innerHTML = `<p class="preset-empty">${t("profiles.empty")}</p>`;
     return;
   }
   box.innerHTML = "";
@@ -84,18 +87,18 @@ export function renderPresets() {
     row.classList.toggle("is-active", preset.name === state.activePreset);
     row.innerHTML = `
       <span class="preset-name">${escapeHtml(preset.name)}</span>
-      <button class="btn primary preset-apply" type="button">Laden</button>
-      <button class="btn preset-rename" type="button">Umbenennen</button>
-      <button class="btn ghost preset-del" type="button" data-tip="Profil löschen">✕</button>`;
+      <button class="btn primary preset-apply" type="button">${t("profiles.load")}</button>
+      <button class="btn preset-rename" type="button">${t("profiles.rename")}</button>
+      <button class="btn ghost preset-del" type="button" data-tip="${t("profiles.deleteTip")}">✕</button>`;
 
     row.querySelector(".preset-apply").addEventListener("click", () => loadPreset(preset));
     row.querySelector(".preset-rename").addEventListener("click", async () => {
-      const entered = prompt("Neuer Profilname:", preset.name);
+      const entered = prompt(t("profiles.renamePrompt"), preset.name);
       if (entered == null) return;
       const name = entered.trim();
       if (!name || name === preset.name) return;
       if (profileExists(name)) {
-        alert(`Ein Profil "${name}" existiert bereits.`);
+        alert(t("profiles.exists", { name }));
         return;
       }
       await renameProfile(preset.name, name);
@@ -103,7 +106,7 @@ export function renderPresets() {
       renderProfileStatus();
     });
     row.querySelector(".preset-del").addEventListener("click", async () => {
-      if (!confirm(`Profil "${preset.name}" löschen?`)) return;
+      if (!confirm(t("profiles.confirmDelete", { name: preset.name }))) return;
       await deleteProfile(preset.name);
       renderPresets();
       renderProfileStatus();

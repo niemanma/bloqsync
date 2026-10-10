@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -14,225 +14,248 @@
       <span class="brand-name">bloqsync</span>
     </div>
     <div class="topbar-actions">
-      <span id="profile-chip" class="profile-chip" title="Aktives Profil"></span>
-      <div id="status" class="status-pill" title="Aktueller Zustand">
+      <span id="profile-chip" class="profile-chip" data-i18n-title="app.profile.tip"></span>
+      <select id="lang-select" class="lang-select" data-i18n-tip="app.language.tip"></select>
+      <div id="status" class="status-pill">
         <span id="status-dot" class="dot off"></span>
-        <span id="status-text">lädt …</span>
+        <span id="status-text" data-i18n="app.status.loading">Loading …</span>
       </div>
       <button id="expert-toggle" class="icon-btn" type="button" aria-pressed="false"
-              data-tip="Expertenmodus: zeigt Feinjustierung, Rohdaten und die Legacy-Ansicht.">⚙</button>
+              data-i18n-tip="app.expert.tip">⚙</button>
     </div>
   </header>
 
   <div class="layout">
-    <nav class="segmented" id="mode-tabs" role="tablist" aria-label="Betriebsmodus">
-      <button class="seg is-active" data-mode="screen" role="tab" type="button">Bildschirm</button>
-      <button class="seg" data-mode="cinema" role="tab" type="button">Kino</button>
-      <button class="seg" data-mode="color" role="tab" type="button">Farbe</button>
+    <nav class="segmented" id="mode-tabs" role="tablist" aria-label="Mode">
+      <button class="seg is-active" data-mode="screen" role="tab" type="button" data-i18n="mode.screen">Screen</button>
+      <button class="seg" data-mode="cinema" role="tab" type="button" data-i18n="mode.cinema">Cinema</button>
+      <button class="seg" data-mode="color" role="tab" type="button" data-i18n="mode.color">Colour</button>
     </nav>
 
     <main>
-      <!-- ── Bildschirm ─────────────────────────────────────────── -->
+      <!-- ── Screen ─────────────────────────────────────────────── -->
       <section id="panel-screen" class="panel">
         <article class="card">
           <div class="card-head">
-            <h2>Bildschirm-Synchronisation</h2>
-            <span class="hint" data-tip="Die Leisten übernehmen die Farben an den Rändern deiner Monitore.">?</span>
+            <h2 data-i18n="screen.title">Screen sync</h2>
+            <span class="hint" data-i18n-tip="screen.tip">?</span>
           </div>
 
           <div id="capture-empty" class="empty">
             <div class="empty-art" aria-hidden="true"></div>
-            <p class="lead">Verbinde deine Monitore, um die Beleuchtung zu starten.</p>
-            <button id="connect-monitors" class="btn primary" type="button">Monitore verbinden</button>
+            <p class="lead" data-i18n="screen.empty">Connect your monitors to start the lighting.</p>
+            <button id="connect-monitors" class="btn primary" type="button" data-i18n="screen.connect">Connect monitors</button>
           </div>
 
           <div id="capture-live" class="hidden">
             <div id="monmap" class="monmap"></div>
             <div id="bars" class="bars"></div>
             <div class="actions">
-              <button id="start-all" class="btn primary" type="button">Synchronisation starten</button>
-              <button id="stop-all" class="btn" type="button">Stoppen</button>
-              <button id="disconnect-monitors" class="btn ghost expert-only" type="button">Verbindung trennen</button>
+              <button id="start-all" class="btn primary" type="button" data-i18n="screen.startAll">Start sync</button>
+              <button id="stop-all" class="btn" type="button" data-i18n="screen.stopAll">Stop</button>
+              <button id="disconnect-monitors" class="btn ghost expert-only" type="button" data-i18n="screen.disconnect">Disconnect</button>
             </div>
           </div>
         </article>
       </section>
 
-      <!-- ── Kino ───────────────────────────────────────────────── -->
+      <!-- ── Cinema ─────────────────────────────────────────────── -->
       <section id="panel-cinema" class="panel hidden">
         <article class="card">
           <div class="card-head">
-            <h2>Kino-Modus</h2>
-            <span class="hint" data-tip="Reagiert nur auf den Ton – funktioniert auch bei kopiergeschützten Streams.">?</span>
+            <h2 data-i18n="cinema.title">Cinema mode</h2>
+            <span class="hint" data-i18n-tip="cinema.tip">?</span>
           </div>
-          <p class="lead">Das Licht folgt der Szene – passend für Netflix &amp; Co.</p>
+          <p class="lead" data-i18n="cinema.lead">The light follows the scene.</p>
 
           <div class="grid">
-            <label class="field color-field">Grundfarbe
+            <label class="field color-field"><span data-i18n="cinema.base">Base colour</span>
               <input type="color" id="cin-color" value="#5a2882" />
             </label>
-            <label class="field grow">Intensität
+            <label class="field grow"><span data-i18n="cinema.intensity">Intensity</span>
               <input type="range" id="cin-bri" min="10" max="100" value="70" />
               <output id="cin-bri-out">0.70</output>
             </label>
           </div>
 
           <div class="grid expert-only">
-            <label class="field">Sensitivität
+            <label class="field"><span data-i18n="cinema.sensitivity">Sensitivity</span>
               <input type="range" id="cin-sens" min="30" max="250" value="100" />
               <output id="cin-sens-out">1.00</output>
             </label>
-            <label class="field">Ruhepegel
+            <label class="field"><span data-i18n="cinema.floor">Rest level</span>
               <input type="range" id="cin-floor" min="0" max="80" value="35" />
               <output id="cin-floor-out">0.35</output>
             </label>
-            <label class="field">Trägheit
+            <label class="field"><span data-i18n="cinema.smoothing">Inertia</span>
               <input type="range" id="cin-smooth" min="20" max="300" value="60" />
               <output id="cin-smooth-out">0.60</output>
             </label>
-            <label class="field">Kontrast
+            <label class="field"><span data-i18n="cinema.contrast">Contrast</span>
               <input type="range" id="cin-contrast" min="0" max="150" value="100" />
               <output id="cin-contrast-out">1.00</output>
             </label>
-            <label class="field">Puls
+            <label class="field"><span data-i18n="cinema.pulse">Pulse</span>
               <input type="range" id="cin-pulse" min="0" max="100" value="0" />
               <output id="cin-pulse-out">0.00</output>
             </label>
           </div>
 
           <div class="actions">
-            <button id="cinema-start" class="btn primary" type="button">Kino-Modus starten</button>
-            <button id="cinema-stop" class="btn" type="button">Stoppen</button>
+            <button id="cinema-start" class="btn primary" type="button" data-i18n="cinema.start">Start cinema mode</button>
+            <button id="cinema-stop" class="btn" type="button" data-i18n="cinema.stop">Stop</button>
           </div>
         </article>
       </section>
 
-      <!-- ── Farbe ──────────────────────────────────────────────── -->
+      <!-- ── Colour ─────────────────────────────────────────────── -->
       <section id="panel-color" class="panel hidden">
         <article class="card">
           <div class="card-head">
-            <h2>Statische Farbe</h2>
-            <span class="hint" data-tip="Hält die Leisten einfarbig und pausiert die Synchronisation.">?</span>
+            <h2 data-i18n="color.title">Static colour</h2>
+            <span class="hint" data-i18n-tip="color.tip">?</span>
           </div>
           <div class="swatches">
-            <button class="sw" data-rgb="255,0,0" style="--c:#ff3b30" type="button" aria-label="Rot"></button>
-            <button class="sw" data-rgb="0,255,0" style="--c:#34c759" type="button" aria-label="Grün"></button>
-            <button class="sw" data-rgb="0,0,255" style="--c:#0a84ff" type="button" aria-label="Blau"></button>
-            <button class="sw" data-rgb="255,200,100" style="--c:#ffc864" type="button" aria-label="Warmweiß"></button>
-            <button class="sw" data-rgb="0,0,0" style="--c:#000000" type="button" aria-label="Aus"></button>
-            <label class="sw custom" data-tip="Eigene Farbe">
+            <button class="sw" data-rgb="255,0,0" style="--c:#ff3b30" type="button" data-i18n-aria="color.red"></button>
+            <button class="sw" data-rgb="0,255,0" style="--c:#34c759" type="button" data-i18n-aria="color.green"></button>
+            <button class="sw" data-rgb="0,0,255" style="--c:#0a84ff" type="button" data-i18n-aria="color.blue"></button>
+            <button class="sw" data-rgb="255,200,100" style="--c:#ffc864" type="button" data-i18n-aria="color.warm"></button>
+            <button class="sw" data-rgb="0,0,0" style="--c:#000000" type="button" data-i18n-aria="color.off"></button>
+            <label class="sw custom" data-i18n-tip="color.custom">
               <input type="color" id="custom-color" value="#ff8800" />
             </label>
           </div>
           <div class="actions">
-            <button id="resume-sync" class="btn primary" type="button">Zum Bildschirm-Sync zurück</button>
+            <button id="resume-sync" class="btn primary" type="button" data-i18n="color.resume">Back to screen sync</button>
           </div>
         </article>
       </section>
 
-      <!-- ── Automatik ──────────────────────────────────────────── -->
+      <!-- ── Automation ─────────────────────────────────────────── -->
       <article class="card">
         <div class="card-head">
-          <h2>Automatik</h2>
-          <span class="hint" data-tip="Deine Auswahl wird gespeichert und beim nächsten Mal automatisch wiederhergestellt.">?</span>
+          <h2 data-i18n="auto.title">Automation</h2>
+          <span class="hint" data-i18n-tip="auto.tip">?</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="autostart" />
           <span class="track"></span>
-          <span class="switch-label">Beim Anmelden starten</span>
+          <span class="switch-label" data-i18n="auto.login">Start on login</span>
         </label>
         <label class="switch">
           <input type="checkbox" id="autostart-sync" />
           <span class="track"></span>
-          <span class="switch-label">Synchronisation automatisch starten</span>
+          <span class="switch-label" data-i18n="auto.sync">Start sync automatically</span>
         </label>
       </article>
 
-      <!-- ── Profile ────────────────────────────────────────────── -->
+      <!-- ── Profiles ───────────────────────────────────────────── -->
       <article class="card" id="card-profiles">
         <div class="card-head">
-          <h2>Profile</h2>
-          <span class="hint" data-tip="Speichert Einstellungen und die Zuordnung der Leisten zu den Monitoren – ideal zum Umschalten.">?</span>
+          <h2 data-i18n="profiles.title">Profiles</h2>
+          <span class="hint" data-i18n-tip="profiles.tip">?</span>
         </div>
         <div class="profile-current">
-          <span class="muted">Aktives Profil:</span>
+          <span class="muted" data-i18n="profiles.active">Active profile:</span>
           <span id="profile-active" class="profile-active-name">custom</span>
-          <span id="profile-dirty" class="profile-dirty hidden">ungespeicherte Änderungen</span>
+          <span id="profile-dirty" class="profile-dirty hidden" data-i18n="profiles.dirty">unsaved changes</span>
         </div>
         <div class="row">
-          <input type="text" id="preset-name" class="input" placeholder="Profilname" maxlength="40" />
-          <button id="preset-new" class="btn" type="button">Neu erstellen</button>
-          <button id="preset-save" class="btn primary" type="button">In Profil speichern</button>
+          <input type="text" id="preset-name" class="input" data-i18n-placeholder="profiles.namePlaceholder" maxlength="40" />
+          <button id="preset-new" class="btn" type="button" data-i18n="profiles.new">Create new</button>
+          <button id="preset-save" class="btn primary" type="button" data-i18n="profiles.save">Save to profile</button>
         </div>
         <div id="preset-list" class="preset-list"></div>
       </article>
 
-      <!-- ── Erweitert (Expertenmodus) ──────────────────────────── -->
+      <!-- ── Advanced (expert) ──────────────────────────────────── -->
       <article class="card expert-only" id="card-advanced">
-        <div class="card-head"><h2>Erweiterte Einstellungen</h2></div>
+        <div class="card-head"><h2 data-i18n="adv.title">Advanced settings</h2></div>
         <div class="grid">
-          <label class="field">Bildrate (FPS)
+          <label class="field"><span data-i18n="adv.fps">Frame rate (FPS)</span>
             <input type="range" id="fps" min="10" max="60" value="24" />
             <output id="fps-out">24</output>
           </label>
-          <label class="field">Glättung
+          <label class="field"><span data-i18n="adv.smoothing">Smoothing</span>
             <input type="range" id="smooth" min="0" max="100" value="22" />
             <output id="smooth-out">0.22</output>
           </label>
-          <label class="field">Helligkeit
+          <label class="field"><span data-i18n="adv.brightness">Brightness</span>
             <input type="range" id="brightness" min="0" max="255" value="200" />
             <output id="brightness-out">200</output>
           </label>
         </div>
         <div class="grid four">
-          <label class="field">Links<input type="number" id="z-left" value="18" min="0" max="254" /></label>
-          <label class="field">Oben<input type="number" id="z-top" value="18" min="0" max="254" /></label>
-          <label class="field">Rechts<input type="number" id="z-right" value="18" min="0" max="254" /></label>
-          <label class="field">Unten<input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.left">Left</span><input type="number" id="z-left" value="18" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.top">Top</span><input type="number" id="z-top" value="18" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.right">Right</span><input type="number" id="z-right" value="18" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.bottom">Bottom</span><input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
         </div>
         <div class="grid">
-          <label class="field">Flacker-Filter
+          <label class="field"><span data-i18n="adv.filter">Flicker filter</span>
             <select id="filter">
-              <option value="none">keine</option>
-              <option value="deadband">Deadband (Hysterese)</option>
-              <option value="quantize">Quantisieren</option>
-              <option value="quantize_smooth">Quantisieren + weich</option>
-              <option value="smooth">Weich (Hysterese+Ramp)</option>
-              <option value="median3">Median 3</option>
-              <option value="median5">Median 5</option>
-              <option value="mean4">Mittelwert 4</option>
-              <option value="test">Test (Negativ)</option>
+              <option value="none" data-i18n="filter.none">none</option>
+              <option value="deadband" data-i18n="filter.deadband">Deadband</option>
+              <option value="quantize" data-i18n="filter.quantize">Quantise</option>
+              <option value="quantize_smooth" data-i18n="filter.quantize_smooth">Quantise + smooth</option>
+              <option value="smooth" data-i18n="filter.smooth">Smooth</option>
+              <option value="median3" data-i18n="filter.median3">Median 3</option>
+              <option value="median5" data-i18n="filter.median5">Median 5</option>
+              <option value="mean4" data-i18n="filter.mean4">Mean 4</option>
+              <option value="test" data-i18n="filter.test">Test (negative)</option>
             </select>
           </label>
-          <label class="field">Filter-Stärke
+          <label class="field"><span data-i18n="adv.filterStrength">Filter strength</span>
             <input type="range" id="filter-strength" min="1" max="32" value="8" />
             <output id="filter-strength-out">8</output>
           </label>
-          <label class="field">Reports/Update <span class="hint" data-tip="0 = volle Detailtreue.">?</span>
+          <label class="field"><span data-i18n="adv.maxFrames">Reports/update</span>
+            <span class="hint" data-i18n-tip="adv.maxFramesTip">?</span>
             <input type="number" id="max-frames" min="0" max="8" value="0" />
           </label>
         </div>
       </article>
 
-      <!-- ── Geräte (Expertenmodus) ─────────────────────────────── -->
+      <!-- ── Bar models (expert) ────────────────────────────────── -->
+      <article class="card expert-only" id="card-models">
+        <div class="card-head">
+          <h2 data-i18n="models.title">Bar models</h2>
+          <span class="hint" data-i18n-tip="models.tip">?</span>
+        </div>
+        <div id="model-list" class="device-list"></div>
+        <div class="grid four" style="margin-top:14px">
+          <label class="field"><span data-i18n="models.name">Name</span><input type="text" id="model-name" data-i18n-placeholder="models.namePlaceholder" maxlength="40" /></label>
+          <label class="field"><span data-i18n="models.leds">LEDs</span><input type="number" id="model-leds" value="54" min="1" max="254" /></label>
+          <label class="field"><span data-i18n="adv.left">Left</span><input type="number" id="model-left" value="14" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.top">Top</span><input type="number" id="model-top" value="26" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.bottom">Bottom</span><input type="number" id="model-bottom" value="0" min="0" max="254" /></label>
+          <label class="field"><span data-i18n="adv.right">Right</span><input type="number" id="model-right" value="14" min="0" max="254" /></label>
+        </div>
+        <div class="actions">
+          <button id="model-add" class="btn" type="button" data-i18n="models.add">Add model</button>
+        </div>
+      </article>
+
+      <!-- ── Devices (expert) ───────────────────────────────────── -->
       <article class="card expert-only" id="card-devices">
-        <div class="card-head"><h2>Geräte</h2></div>
+        <div class="card-head"><h2 data-i18n="devices.title">Devices</h2></div>
         <div id="device-list" class="device-list"></div>
       </article>
 
-      <!-- ── Legacy (Expertenmodus) ─────────────────────────────── -->
+      <!-- ── Legacy (expert) ────────────────────────────────────── -->
       <article class="card expert-only" id="card-legacy">
         <div class="card-head">
-          <h2>Legacy-UI</h2>
-          <span class="hint" data-tip="Klassische Ansicht mit allen Rohdaten – falls die neue Oberfläche Probleme macht.">?</span>
+          <h2 data-i18n="legacy.title">Legacy UI</h2>
+          <span class="hint" data-i18n-tip="legacy.tip">?</span>
         </div>
-        <button id="open-legacy" class="btn" type="button">Legacy-UI öffnen</button>
+        <button id="open-legacy" class="btn" type="button" data-i18n="legacy.open">Open legacy UI</button>
       </article>
     </main>
   </div>
 
   <div id="boot-error" class="boot-error hidden">
-    Die Oberfläche konnte nicht geladen werden. <a href="legacy/index.html">Legacy-UI öffnen</a>
+    <span data-i18n="boot.error">The user interface could not be loaded.</span>
+    <a href="legacy/index.html" data-i18n="boot.legacy">Open legacy UI</a>
   </div>
 
   <script>
