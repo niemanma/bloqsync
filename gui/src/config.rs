@@ -260,6 +260,25 @@ impl Config {
         self.presets.retain(|p| p.name != name);
     }
 
+    /// Rename a preset. Returns `false` for a blank name, an unchanged name or
+    /// a name that is already taken (so the caller can report it).
+    pub(crate) fn rename_preset(&mut self, old: &str, new: &str) -> bool {
+        let new = new.trim();
+        if new.is_empty() || old == new {
+            return false;
+        }
+        if self.presets.iter().any(|p| p.name == new) {
+            return false;
+        }
+        match self.presets.iter_mut().find(|p| p.name == old) {
+            Some(p) => {
+                p.name = new.to_string();
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Fold a [`Config`] coming from the UI into `self` (the authoritative
     /// on-disk config): Rust-managed fields and bars the UI does not know about
     /// are preserved, and the resulting bar mapping is mirrored into the active
@@ -467,6 +486,20 @@ mod tests {
         cfg.remove_preset("A");
         assert_eq!(cfg.presets.len(), 1);
         assert_eq!(cfg.presets[0].name, "B");
+    }
+
+    #[test]
+    fn rename_preset_rules() {
+        let mut cfg = Config::default();
+        cfg.upsert_preset(preset("A", 1));
+        cfg.upsert_preset(preset("B", 2));
+        assert!(cfg.rename_preset("A", "C"));
+        assert!(cfg.presets.iter().any(|p| p.name == "C"));
+        // Blank, unchanged and duplicate names are rejected.
+        assert!(!cfg.rename_preset("C", "  "));
+        assert!(!cfg.rename_preset("C", "C"));
+        assert!(!cfg.rename_preset("C", "B"));
+        assert!(!cfg.rename_preset("missing", "D"));
     }
 
     #[test]

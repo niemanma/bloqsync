@@ -11,7 +11,34 @@ export const state = {
   rowState: {},       // bar key -> { stream, reverse }
   activeMode: "screen",
   expert: false,
+  activePreset: null,     // name of the loaded profile (or null)
+  profileSnapshot: null,  // serialized settings/bars when the profile was loaded
 };
+
+const PROFILE_KEY = "bloqsync.profile";
+
+const round2 = (v) => Math.round(v * 100) / 100;
+
+/// Normalise settings so float noise (f32 round-trips) never looks "dirty".
+function normalizedSettings(s) {
+  return {
+    fps: s.fps, smooth: round2(s.smooth), brightness: s.brightness,
+    left: s.left, top: s.top, right: s.right, bottom: s.bottom,
+    filter: s.filter, filter_strength: s.filter_strength, max_frames: s.max_frames,
+    custom_color: s.custom_color, cinema_color: s.cinema_color,
+    cinema_sensitivity: round2(s.cinema_sensitivity),
+    cinema_brightness: round2(s.cinema_brightness),
+    cinema_floor: round2(s.cinema_floor),
+    cinema_smooth: round2(s.cinema_smooth),
+    cinema_contrast: round2(s.cinema_contrast),
+    cinema_pulse: round2(s.cinema_pulse),
+  };
+}
+
+function snapshot(settings, bars) {
+  const sorted = (bars || []).slice().sort((a, b) => a.bar_path.localeCompare(b.bar_path));
+  return JSON.stringify({ settings: normalizedSettings(settings), bars: sorted });
+}
 
 const DEFAULT_CONFIG = {
   bars: [],
@@ -213,4 +240,71 @@ export function setExpert(on) {
   const toggle = $("#expert-toggle");
   if (toggle) toggle.setAttribute("aria-pressed", String(on));
   localStorage.setItem("bloqsync.expert", on ? "1" : "0");
+}
+
+// ── Profile (preset) state ──────────────────────────────────────────
+
+export function currentSnapshot() {
+  return snapshot(readSettings(), currentBars());
+}
+
+/** True if the current form differs from the loaded profile. */
+export function isProfileDirty() {
+  return state.activePreset !== null
+    && state.profileSnapshot !== null
+    && currentSnapshot() !== state.profileSnapshot;
+}
+
+/** Mark `name` as the active profile and remember the current state. */
+export function setActivePreset(name) {
+  state.activePreset = name || null;
+  state.profileSnapshot = currentSnapshot();
+  if (state.activePreset) localStorage.setItem(PROFILE_KEY, state.activePreset);
+  else localStorage.removeItem(PROFILE_KEY);
+}
+
+/** Restore the active profile name after a restart (without overwriting the
+ *  current settings, so unsaved changes are reported as "custom"). */
+export function restoreActivePreset() {
+  const name = localStorage.getItem(PROFILE_KEY);
+  const preset = name && state.presets.find((p) => p.name === name);
+  if (!preset) {
+    setActivePreset(null);
+    return;
+  }
+  state.activePreset = name;
+  state.profileSnapshot = snapshot(preset, preset.bars);
+}
+
+/** Write the current settings back into the active profile. */
+export async function saveActiveProfile() {
+  if (!state.activePreset) return false;
+  await savePreset(state.activePreset);
+  state.profileSnapshot = currentSnapshot();
+  return true;
+}
+
+export async function createProfile(name) {
+  await savePreset(name);
+  setActivePreset(name);
+}
+
+export async function renameProfile(oldName, newName) {
+  const ok = await invoke("rename_preset", { old: oldName, new: newName }).catch(() => false);
+  if (ok && state.activePreset === oldName) {
+    state.activePreset = newName;
+    localStorage.setItem(PROFILE_KEY, newName);
+  }
+  await loadPresets();
+  return ok;
+}
+
+export async function deleteProfile(name) {
+  await deletePreset(name);
+  if (state.activePreset === name) setActivePreset(null);
+}
+
+/** True if a profile with this name already exists. */
+export function profileExists(name) {
+  return state.presets.some((p) => p.name === name);
 }

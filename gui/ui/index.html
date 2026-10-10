@@ -14,6 +14,7 @@
       <span class="brand-name">bloqsync</span>
     </div>
     <div class="topbar-actions">
+      <span id="profile-chip" class="profile-chip" title="Aktives Profil"></span>
       <div id="status" class="status-pill" title="Aktueller Zustand">
         <span id="status-dot" class="dot off"></span>
         <span id="status-text">lädt …</span>
@@ -153,9 +154,15 @@
           <h2>Profile</h2>
           <span class="hint" data-tip="Speichert Einstellungen und die Zuordnung der Leisten zu den Monitoren – ideal zum Umschalten.">?</span>
         </div>
+        <div class="profile-current">
+          <span class="muted">Aktives Profil:</span>
+          <span id="profile-active" class="profile-active-name">custom</span>
+          <span id="profile-dirty" class="profile-dirty hidden">ungespeicherte Änderungen</span>
+        </div>
         <div class="row">
           <input type="text" id="preset-name" class="input" placeholder="Profilname" maxlength="40" />
-          <button id="preset-save" class="btn" type="button">Aktuell speichern</button>
+          <button id="preset-new" class="btn" type="button">Neu erstellen</button>
+          <button id="preset-save" class="btn primary" type="button">In Profil speichern</button>
         </div>
         <div id="preset-list" class="preset-list"></div>
       </article>

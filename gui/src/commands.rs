@@ -335,3 +335,8 @@ pub(crate) fn delete_preset(name: String) -> Result<(), String> {
     update_config(|cfg| cfg.remove_preset(&name));
     Ok(())
 }
+
+#[tauri::command]
+pub(crate) fn rename_preset(old: String, new: String) -> Result<bool, String> {
+    Ok(update_config(|cfg| cfg.rename_preset(&old, &new)))
+}

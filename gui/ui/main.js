@@ -2,11 +2,13 @@
 
 import { invoke, listen } from "./js/api.js";
 import { $, $$, bindSlider } from "./js/util.js";
-import { state, loadConfig, loadDevices, loadPresets, setExpert, setMode } from "./js/state.js";
+import {
+  state, loadConfig, loadDevices, loadPresets, setExpert, setMode, restoreActivePreset,
+} from "./js/state.js";
 import { initScreen, renderBars, renderCaptureState } from "./js/screen.js";
 import { initCinema } from "./js/cinema.js";
 import { initColor } from "./js/color.js";
-import { initProfiles, renderPresets } from "./js/profiles.js";
+import { initProfiles, renderPresets, renderProfileStatus } from "./js/profiles.js";
 import { initSettings, renderDevices } from "./js/settings.js";
 
 function bindOutputs() {
@@ -44,6 +46,7 @@ function renderStatus(st) {
 async function statusTick() {
   try {
     renderStatus(await invoke("status"));
+    renderProfileStatus();
     const captures = await invoke("capture_info").catch(() => null);
     if (captures && JSON.stringify(captures) !== JSON.stringify(state.streams)) {
       state.streams = captures;
@@ -67,7 +70,9 @@ async function boot() {
 
   await loadConfig();
   await loadPresets();
+  restoreActivePreset();
   renderPresets();
+  renderProfileStatus();
   await loadDevices();
   renderDevices();
   renderCaptureState();
