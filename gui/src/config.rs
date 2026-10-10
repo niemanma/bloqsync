@@ -44,6 +44,8 @@ pub(crate) struct Profile {
 #[serde(default)]
 pub(crate) struct Preset {
     pub(crate) name: String,
+    /// Bar → monitor assignment captured with the preset.
+    pub(crate) bars: Vec<BarConfig>,
     pub(crate) fps: u32,
     pub(crate) smooth: f32,
     pub(crate) brightness: u8,
@@ -475,6 +477,22 @@ mod tests {
         assert_eq!(p.name, "Nur Name");
         assert_eq!(p.fps, 0);
         assert_eq!(p.filter, "");
+        assert!(p.bars.is_empty());
+    }
+
+    #[test]
+    fn preset_round_trips_bar_assignment() {
+        let p = Preset {
+            name: "main2".into(),
+            bars: vec![bar("a", 1, true), bar("b", 0, false)],
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&p).unwrap();
+        let back: Preset = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.bars.len(), 2);
+        assert_eq!(back.bars[0].bar_path, "a");
+        assert_eq!(back.bars[0].stream_index, 1);
+        assert!(back.bars[0].reverse);
     }
 
     #[test]

@@ -124,16 +124,21 @@ export function cinemaSettings() {
   };
 }
 
+/** Current bar → monitor assignment from the in-memory row state. */
+export function currentBars() {
+  return state.devices.map((d) => {
+    const key = d.uuid || d.id;
+    return {
+      bar_path: key,
+      stream_index: state.rowState[key]?.stream ?? 0,
+      reverse: state.rowState[key]?.reverse ?? true,
+    };
+  });
+}
+
 export function currentConfig() {
   return {
-    bars: state.devices.map((d) => {
-      const key = d.uuid || d.id;
-      return {
-        bar_path: key,
-        stream_index: state.rowState[key]?.stream ?? 0,
-        reverse: state.rowState[key]?.reverse ?? true,
-      };
-    }),
+    bars: currentBars(),
     ...readSettings(),
     autostart: $("#autostart")?.checked ?? false,
     autostart_sync: $("#autostart-sync")?.checked ?? false,
@@ -171,7 +176,8 @@ export async function loadPresets() {
 }
 
 export async function savePreset(name) {
-  await invoke("save_preset", { preset: { name, ...readSettings() } });
+  // A preset captures the settings *and* the bar → monitor assignment.
+  await invoke("save_preset", { preset: { name, ...readSettings(), bars: currentBars() } });
   await loadPresets();
 }
 
@@ -180,8 +186,14 @@ export async function deletePreset(name) {
   await loadPresets();
 }
 
+/** Apply a preset to the form and the in-memory bar assignment. */
 export function applyPreset(preset) {
   setSettings(preset);
+  if (Array.isArray(preset.bars)) {
+    for (const b of preset.bars) {
+      state.rowState[b.bar_path] = { stream: b.stream_index, reverse: !!b.reverse };
+    }
+  }
 }
 
 export function setMode(mode) {
