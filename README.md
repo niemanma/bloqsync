@@ -6,8 +6,13 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20GNOME%2FWayland-informational)](#)
 
 High-performance ambient light ("Ambilight") screen synchronisation for the
-**ROBOBLOQ SyncLight** USB LED bar on Linux (GNOME / Wayland), plus an
+**ROBOBLOQ SyncLight** USB LED bars on Linux (GNOME / Wayland), plus an
 audio-reactive **cinema mode** for DRM content such as Netflix.
+
+- **Plug & play GUI** with a normal mode and an optional expert mode
+- **Named profiles** that remember your settings *and* the bar ↔ monitor mapping
+- **Bar models** (per-bar LED count + edge distribution) for different strip sizes
+- **English & German** UI (more languages easy to add)
 
 > **AI-generated.** The code in this repository was written by an AI model
 > (DeepSeek V4.1 Flash via OpenRouter) and is provided **as-is**. The author does
@@ -23,23 +28,27 @@ audio-reactive **cinema mode** for DRM content such as Netflix.
 > descriptively, to identify the device being driven. The reverse engineering was
 > done **for interoperability** with a personally owned device.
 >
-> **Tested only with** the ROBOBLOQ SyncLight **24″ variant (54 LEDs, firmware
-> 1.9.4)** on **Zorin OS 18.1 / GNOME 46 / PipeWire 1.0.5**, with **two monitors
-> and two bars**. Other sizes, LED counts and revisions are **not tested**.
+> **Developed and tested** on the ROBOBLOQ SyncLight **24″ variant (54 LEDs,
+> firmware 1.9.4)** on **Zorin OS 18.1 / GNOME 46 / PipeWire 1.0.5**, with **two
+> monitors and two bars**. The LED count and edge distribution are configurable
+> through [bar models](#bar-models), so other sizes can be added — they are just
+> not tested yet.
 
 ## Features
 
-- Smooth screen sync with a full **54-LED** gradient (default **24 fps**,
-  smoothing **0.22**; up to ~30 fps possible)
+- Smooth screen sync with a full LED gradient (default **24 fps**, smoothing
+  **0.22**; up to ~30 fps)
 - True per-LED / per-zone control via the fast `setSyncScreen` protocol
 - Capture through **PipeWire** (`xdg-desktop-portal` ScreenCast) — no screenshot
   subprocesses
-- Device auto-discovery, persistent configuration, **Tauri** desktop app
-- **Cinema mode** (audio-reactive) for DRM content: a fixed base colour with a
-  flowing, contrast-driven brightness taken from the audio
+- Device auto-discovery and persistent configuration (**Tauri** desktop app)
 - **Two-level UI**: a plug-and-play normal mode and an optional expert mode
-- **Named profiles** for saving and recalling settings
-- Schematic **multi-monitor map** and per-bar monitor assignment
+- **Named profiles**: save, load, rename and delete; store both settings and the
+  bar ↔ monitor assignment
+- **Bar models**: per-bar LED count and edge distribution (built-in + custom)
+- Schematic **multi-monitor map** with monitor names and per-bar assignment
+- **Cinema mode** (audio-reactive) for DRM content
+- **English / German** UI, switchable and remembered
 - The previous UI is preserved as a **legacy UI** (fallback)
 
 ## Screenshots
@@ -80,25 +89,55 @@ builds and bundles a `.deb`) or see [Building](#building).
 
 The app has two levels:
 
-- **Normal mode** — plug and play. Click **"Monitore verbinden"** to select the
+- **Normal mode** — plug and play. Click **Connect monitors** to select the
   monitors once; the app shows a schematic map and one card per bar. Each bar is
-  named after the monitor it is assigned to (Monitor 1, 2, …) and can be
-  mirrored, identified (blink) and started/stopped. Automation toggles
-  ("start on login", "start synchronisation automatically") and **profiles** are
-  always available.
-- **Expert mode** — toggle the gear icon (top right). Reveals raw settings such
-  as FPS, smoothing, brightness, zone layout, flicker filters, reports/update,
-  device identifiers and the switch to the **legacy UI**. The choice is
-  remembered.
+  named after the monitor it drives (Monitor 1, 2, …) and can be mirrored,
+  identified (blink), assigned a **bar model** and started/stopped. Automation
+  toggles and **profiles** are always available.
+- **Expert mode** — toggle the gear icon (top right). Reveals the frame rate,
+  smoothing, brightness, edge layout, flicker filters, reports/update, the
+  **bar-model** manager, device identifiers and the switch to the **legacy UI**.
+  The choice is remembered.
 
 Operating modes are selected with the segmented control at the top:
 
-- **Bildschirm (Screen)** — border sampling of the captured monitors.
-- **Kino (Cinema)** — audio-reactive lighting for DRM streams.
-- **Farbe (Colour)** — a static colour that pauses the sync.
+- **Screen** — border sampling of the captured monitors.
+- **Cinema** — audio-reactive lighting for DRM streams.
+- **Colour** — a static colour that pauses the sync.
 
-Settings are stored in `~/.config/bloqsync/config.json`. Old config files remain
-readable (new fields are additive).
+Settings and profiles are stored in `~/.config/bloqsync/config.json`. Old config
+files remain readable (all new fields are additive).
+
+### Profiles
+
+Profiles capture the current settings **and** the bar ↔ monitor assignment, so you
+can switch between setups (e.g. a mirrored arrangement) with a single click:
+
+- The active profile is shown in the top bar. Changing anything shows
+  `custom (<name>)` until you **Save to profile**.
+- **Load** re-applies a profile and discards unsaved changes.
+- Profiles can be **created**, **renamed** and **deleted**.
+
+### Bar models
+
+Every bar uses a **model** that defines its total LED count and how the LEDs are
+distributed over the monitor edges (**left / top / bottom / right**). The
+distribution decides which part of the screen each LED samples.
+
+- The default model is the **24″ SyncLight: 54 LEDs, 14/26/14** (left 14, top 26,
+  right 14, bottom 0).
+- Built-in models are shipped as JSON in [`gui/models/`](gui/models) and embedded
+  into the app; you can add your own under **Expert mode → Bar models**.
+- A profile can mix models, e.g. one 24″ and one 27″ bar.
+- If a model's LED count or distribution does not match the physical bar, the UI
+  flags it as a conflict.
+
+### Languages
+
+The UI ships with **English (default)** and **German**; switch languages in the
+top bar and the choice is remembered. Adding another language only needs a
+dictionary file: copy `gui/ui/js/lang/en.js`, translate it, and list it in
+`gui/ui/js/i18n.js`.
 
 ### CLI
 
@@ -160,7 +199,7 @@ inclusive. `end = 254` means "until the end of the strip". A section with
 2. **Several small frames per update work** (the device keeps previously set
    sections — composition), **but only with a short pause: ~3 ms between
    frames**. Without the pause the bar "rolls"/flickers. With 3 ms spacing the
-   full 54-LED gradient is stable.
+   full gradient is stable.
 3. For 54 LEDs, 5 frames of 11 sections each are sent; up to ~30 updates/s are
    possible (default: 24).
 
@@ -175,8 +214,8 @@ leading report-ID byte.
 
 ## Avoiding flicker
 
-The bar has only 54 LEDs but must represent a 1920×1080 image. If it follows
-every micro-change it visibly "jumps" between colours. Empirically:
+A bar has only a few dozen LEDs but must represent a 1920×1080 image. If it
+follows every micro-change it visibly "jumps" between colours. Empirically:
 
 - **Keep the frame rate low**: ~24 fps is the sweet spot. Smoothing acts *per
   frame*, so at 60 fps the bar reacts to noise much faster within the same time
@@ -194,7 +233,7 @@ every micro-change it visibly "jumps" between colours. Empirically:
 
 ### Optional filter toolbox (in the UI)
 
-Under "Flacker-Filter" the following are available for comparison: `none`,
+Under *Flicker filter* the following are available for comparison: `none`,
 `Deadband`, `Quantize`, `Quantize + smooth`, `Median 3/5`, `Mean 4`,
 `Smooth (hysteresis + ramp)` and `Test (negative)` (diagnostic). The filter is
 applied when a bar is **started**.
@@ -219,9 +258,9 @@ Protected streams deliver only black through ScreenCast, so there is a purely
 
 - **Autostart:** the "start on login" toggle writes
   `~/.config/autostart/bloqsync.desktop`.
-- **Auto-sync:** the "start synchronisation automatically" toggle starts at app
-  launch and keeps the configured bars running via a **watchdog** (every 2 s),
-  including **automatic reconnect** after unplugging/replugging.
+- **Auto-sync:** the "start sync automatically" toggle starts at app launch and
+  keeps the configured bars running via a **watchdog** (every 2 s), including
+  **automatic reconnect** after unplugging/replugging.
 - **Restore token:** the monitor selection is stored as a persistent portal token
   in `~/.config/bloqsync/config.json`, so the GNOME monitor dialog appears only
   **once**; afterwards everything starts without a dialog.
@@ -254,13 +293,17 @@ gui/            Tauri v2 app
   src/
     main.rs       builder wiring only
     config.rs     config types, defaults, JSON persistence, profiles/presets
+    bar_models.rs built-in bar models (embedded JSON) + validation
     state.rs      AppState and runtime handles
     runtime.rs    capture/bar/cinema lifecycle, autostart, background threads
     commands.rs   Tauri commands
     logging.rs    file + stderr logging
     monitors.rs   xrandr setup signature/parsing
-  ui/             HTML/CSS/ES-module frontend (normal + expert modes)
-  ui/legacy/      preserved previous UI
+  models/         shipped bar-model JSON
+  ui/             HTML/CSS/ES-module frontend
+    js/           state, screen, profiles, models, i18n, …
+    js/lang/      en, de (add more here)
+    legacy/       preserved previous UI
 ```
 
 Capture uses `xdg-desktop-portal` ScreenCast v5 (GNOME picker on start), one
@@ -292,12 +335,12 @@ System dependencies (development): `libpipewire-0.3-dev`, `libspa-0.2-dev`,
 
 - **Not maintained:** a one-off AI-generated snapshot (see the notice at the top).
   Issues/PRs are unlikely to be handled → please **fork**.
-- **Tested with one model only:** ROBOBLOQ SyncLight, **24″ variant with 54 LEDs**
+- **Developed on one model:** ROBOBLOQ SyncLight, **24″ variant with 54 LEDs**
   (firmware 1.9.4), on GNOME/Wayland (Zorin OS 18.1 / GNOME 46, PipeWire 1.0.5),
-  two monitors + two bars. Other models / LED counts / revisions are **untested**.
-- The update rate **decreases with a higher LED count** (more sections → more
-  64-byte frames per update), and the **default zone layout is tuned for 54 LEDs**
-  (18/18/18). Use at your own risk.
+  two monitors + two bars. Other sizes/revisions are untested, but the **bar-model**
+  system is meant to make them easy to add.
+- The update rate depends on the LED count (more LEDs → more 64-byte frames per
+  update). The shipped model targets 54 LEDs; other counts can be modelled.
 - **Capture** goes through `xdg-desktop-portal` ScreenCast; the monitor dialog
   appears only the first time (restore token).
 - The **protocol is reverse-engineered** and may differ on other firmware or
@@ -308,9 +351,9 @@ System dependencies (development): `libpipewire-0.3-dev`, `libspa-0.2-dev`,
 
 - **Questions / chat:** GitHub *Discussions*.
 - **Bugs:** *Issues* → "Bug report".
-- **Different model?** Please use *Issues* → "Hardware / compatibility". So far
-  only the **24″ variant (54 LEDs)** has been tested — reports about other sizes
-  and LED counts are very welcome.
+- **Different bar?** Please use *Issues* → "Hardware / compatibility". So far only
+  the 24″/54-LED variant has been verified — reports about other sizes, LED counts
+  and a matching bar-model JSON are very welcome.
 - No telemetry: the tool sends **nothing** anywhere.
 
 ## Acknowledgements
