@@ -3,7 +3,8 @@
 import { invoke, listen } from "./js/api.js";
 import { $, $$, bindSlider } from "./js/util.js";
 import {
-  state, loadConfig, loadDevices, loadPresets, loadBarModels, setExpert, setMode, restoreActivePreset,
+  state, loadConfig, loadDevices, loadPresets, loadBarModels, loadAnimations,
+  setExpert, setMode, restoreActivePreset,
 } from "./js/state.js";
 import { initScreen, renderBars, renderCaptureState } from "./js/screen.js";
 import { initCinema } from "./js/cinema.js";
@@ -11,6 +12,7 @@ import { initColor } from "./js/color.js";
 import { initProfiles, renderPresets, renderProfileStatus } from "./js/profiles.js";
 import { initSettings, renderDevices } from "./js/settings.js";
 import { initModels, renderModels } from "./js/models.js";
+import { initAnimations, renderAnimations, refreshAnimations, editAnimation } from "./js/anims.js";
 import { initLanguage, t, setLanguage, availableLanguages, getLanguage } from "./js/i18n.js";
 
 function bindOutputs() {
@@ -33,6 +35,9 @@ function renderStatus(st) {
   if (st.cinema) {
     dot.className = "dot on";
     text.textContent = t("app.status.cinema");
+  } else if (st.animation) {
+    dot.className = "dot on";
+    text.textContent = t("app.status.animation");
   } else if (st.paused) {
     dot.className = "dot warn";
     text.textContent = t("app.status.color");
@@ -83,14 +88,18 @@ async function boot() {
   initProfiles();
   initSettings();
   initModels();
+  initAnimations();
 
   await loadConfig();
   await loadPresets();
   await loadBarModels();
+  await loadAnimations();
   restoreActivePreset();
   renderPresets();
   renderProfileStatus();
   renderModels();
+  renderAnimations();
+  if (state.animations[0]) editAnimation(state.animations[0]);
   await loadDevices();
   renderDevices();
   renderCaptureState();
@@ -115,6 +124,7 @@ async function boot() {
     renderPresets();
     renderProfileStatus();
     renderModels();
+    refreshAnimations();
     statusTick();
   });
 

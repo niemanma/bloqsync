@@ -4,6 +4,7 @@
 //! first release carries `#[serde(default)]`, so old config files keep loading.
 
 use crate::bar_models::BarModel;
+use bloqsync::anim::Animation;
 use bloqsync::sampling::Layout;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -101,6 +102,9 @@ pub(crate) struct Config {
     /// User-defined bar models (in addition to the built-in ones).
     #[serde(default)]
     pub(crate) bar_models: Vec<BarModel>,
+    /// User-defined animations (in addition to the built-in ones).
+    #[serde(default)]
+    pub(crate) animations: Vec<Animation>,
     /// Persistent mapping USB-port id -> device UUID + info.
     #[serde(default)]
     pub(crate) bar_uuids: HashMap<String, Ident>,
@@ -174,6 +178,7 @@ impl Default for Config {
             profiles: Vec::new(),
             presets: Vec::new(),
             bar_models: Vec::new(),
+            animations: Vec::new(),
             bar_uuids: HashMap::new(),
             custom_color: default_custom_color(),
             cinema_color: default_cinema_color(),
@@ -284,6 +289,22 @@ impl Config {
         self.bar_models.retain(|m| m.id != id);
     }
 
+    /// Add or replace a user-defined animation (built-in animations share ids,
+    /// so a colliding id becomes a user override).
+    pub(crate) fn upsert_animation(&mut self, anim: Animation) {
+        if !anim.valid() {
+            return;
+        }
+        match self.animations.iter_mut().find(|a| a.id == anim.id) {
+            Some(existing) => *existing = anim,
+            None => self.animations.push(anim),
+        }
+    }
+
+    pub(crate) fn remove_animation(&mut self, id: &str) {
+        self.animations.retain(|a| a.id != id);
+    }
+
     /// Rename a preset. Returns `false` for a blank name, an unchanged name or
     /// a name that is already taken (so the caller can report it).
     pub(crate) fn rename_preset(&mut self, old: &str, new: &str) -> bool {
@@ -318,6 +339,10 @@ impl Config {
         }
         if incoming.presets.is_empty() {
             incoming.presets = self.presets.clone();
+        }
+        // Animations are managed through their own commands, too.
+        if incoming.animations.is_empty() {
+            incoming.animations = self.animations.clone();
         }
         // Keep bars that are not currently reported by the UI (e.g. a bar that
         // is temporarily unplugged or on another port).
@@ -557,6 +582,43 @@ mod tests {
         let json = r#"{"bars":[],"fps":24,"smooth":0.22,"left":18,"top":18,"right":18,"bottom":0,"brightness":200}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert!(cfg.presets.is_empty());
+        assert!(cfg.animations.is_empty());
+    }
+
+    fn anim(id: &str) -> Animation {
+        Animation {
+            id: id.into(),
+            name: id.into(),
+            points: vec![bloqsync::anim::Point::default()],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn upsert_animation_inserts_then_replaces() {
+        let mut cfg = Config::default();
+        cfg.upsert_animation(anim("a"));
+        cfg.upsert_animation(anim("a"));
+        assert_eq!(cfg.animations.len(), 1);
+        cfg.upsert_animation(anim("b"));
+        assert_eq!(cfg.animations.len(), 2);
+    }
+
+    #[test]
+    fn upsert_animation_ignores_invalid() {
+        let mut cfg = Config::default();
+        cfg.upsert_animation(Animation::default());
+        assert!(cfg.animations.is_empty());
+    }
+
+    #[test]
+    fn remove_animation_drops_only_matching() {
+        let mut cfg = Config::default();
+        cfg.upsert_animation(anim("a"));
+        cfg.upsert_animation(anim("b"));
+        cfg.remove_animation("a");
+        assert_eq!(cfg.animations.len(), 1);
+        assert_eq!(cfg.animations[0].id, "b");
     }
 
     #[test]

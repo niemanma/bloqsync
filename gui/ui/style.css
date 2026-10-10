@@ -434,3 +434,57 @@ body:not(.expert) .expert-only { display: none !important; }
   box-shadow: var(--shadow);
 }
 .boot-error a { color: #ffb4b4; }
+/* ── Animations ──────────────────────────────────────────── */
+.anim-preview {
+  display: flex; gap: 3px;
+  padding: 12px;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.anim-preview .led { flex: 1; height: 26px; border-radius: 3px; background: #000; min-width: 0; }
+.anim-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.anim-card {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.anim-card-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.anim-card .anim-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anim-card .anim-kind-label { font-size: 12px; color: var(--muted); }
+.anim-card-actions { display: flex; gap: 6px; flex: none; }
+.anim-card-actions .btn { padding: 6px 9px; }
+
+.anim-board {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Animation point table */
+.anim-points-head { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 13px; color: var(--muted); }
+.anim-points { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.anim-points th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; }
+.anim-points td { padding: 4px 8px; border-top: 1px solid var(--border); }
+.anim-points input[type="number"] { width: 72px; padding: 6px 8px; }
+.anim-points input[type="checkbox"] { width: auto; }
+.anim-point-row.sel td { background: var(--surface-2); }
+.anim-swatch { display: inline-block; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); vertical-align: middle; }
+.anim-msg { font-size: 13px; }
+.anim-msg.ok { color: #4ad07a; }
+.anim-msg.err { color: var(--warn); }
+.anim-points input.pt-color { width: 40px; height: 26px; padding: 0; cursor: pointer; }

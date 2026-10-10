@@ -1,11 +1,13 @@
 //! Tauri commands exposed to the UI. Thin adapters over [`crate::runtime`].
 
+use crate::animations;
 use crate::bar_models::{self, BarModel};
 use crate::config::{read_config, update_config, Config, Ident, Preset};
 use crate::logging::log;
 use crate::monitors;
 use crate::runtime::{self, BarSettings, parse_filter};
 use crate::state::{AppState, IdentifyRuntime};
+use bloqsync::anim::Animation;
 use bloqsync::capture::StreamInfo;
 use bloqsync::device::{enumerate, Device};
 use bloqsync::sampling::Layout;
@@ -112,6 +114,7 @@ pub(crate) fn start_bar(
 ) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
+    runtime::animation_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     let settings = BarSettings {
         fps,
@@ -152,12 +155,14 @@ pub(crate) struct StatusDto {
     bars: Vec<BarStatus>,
     paused: bool,
     cinema: bool,
+    animation: bool,
 }
 
 #[tauri::command]
 pub(crate) fn status(state: State<AppState>) -> StatusDto {
     let paused = *state.sync_paused.lock().unwrap();
     let cinema = state.cinema.lock().unwrap().is_some();
+    let animation = state.animation.lock().unwrap().is_some();
     let bars = state
         .bars
         .lock()
@@ -169,7 +174,7 @@ pub(crate) fn status(state: State<AppState>) -> StatusDto {
             sent: b.sync.sent.load(std::sync::atomic::Ordering::Relaxed),
         })
         .collect();
-    StatusDto { bars, paused, cinema }
+    StatusDto { bars, paused, cinema, animation }
 }
 
 #[tauri::command]
@@ -186,6 +191,7 @@ pub(crate) fn set_brightness(state: State<AppState>, value: u8) -> Result<(), St
 pub(crate) fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
+    runtime::animation_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = true;
     runtime::stop_all_inner(&state);
     for info in enumerate() {
@@ -201,6 +207,7 @@ pub(crate) fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Resu
 pub(crate) fn resume_sync(state: State<AppState>) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
     runtime::cinema_stop_inner(&state);
+    runtime::animation_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = false;
     runtime::autostart_run_inner(&state)
 }
@@ -250,6 +257,7 @@ pub(crate) fn identify_bar(
         let _ = prev.thread.join();
     }
     let was_running = !state.bars.lock().unwrap().is_empty();
+    runtime::animation_stop_inner(&state);
     *state.sync_paused.lock().unwrap() = true;
     runtime::stop_all_inner(&state);
 
@@ -359,5 +367,50 @@ pub(crate) fn save_bar_model(model: BarModel) -> Result<(), String> {
 #[tauri::command]
 pub(crate) fn delete_bar_model(id: String) -> Result<(), String> {
     update_config(|cfg| cfg.remove_bar_model(&id));
+    Ok(())
+}
+
+/// Built-in animations plus the user's own ones (user ids override built-ins).
+#[tauri::command]
+pub(crate) fn list_animations() -> Vec<Animation> {
+    let mut anims = animations::builtin();
+    for user in read_config().animations {
+        if !user.valid() {
+            continue;
+        }
+        match anims.iter_mut().find(|a| a.id == user.id) {
+            Some(existing) => *existing = user,
+            None => anims.push(user),
+        }
+    }
+    anims
+}
+
+#[tauri::command]
+pub(crate) fn save_animation(animation: Animation) -> Result<(), String> {
+    update_config(|cfg| cfg.upsert_animation(animation));
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn delete_animation(id: String) -> Result<(), String> {
+    update_config(|cfg| cfg.remove_animation(&id));
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn animation_start(
+    state: State<AppState>,
+    animation: Animation,
+    fps: Option<u32>,
+    brightness: Option<u8>,
+) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
+    runtime::animation_start_inner(&state, animation, fps.unwrap_or(30), brightness)
+}
+
+#[tauri::command]
+pub(crate) fn animation_stop(state: State<AppState>) -> Result<(), String> {
+    runtime::animation_stop_inner(&state);
     Ok(())
 }

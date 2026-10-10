@@ -2,6 +2,7 @@
 
 mod commands;
 mod bar_models;
+mod animations;
 mod config;
 mod logging;
 mod monitors;
@@ -39,7 +40,12 @@ fn main() {
             commands::rename_preset,
             commands::list_bar_models,
             commands::save_bar_model,
-            commands::delete_bar_model
+            commands::delete_bar_model,
+            commands::list_animations,
+            commands::save_animation,
+            commands::delete_animation,
+            commands::animation_start,
+            commands::animation_stop
         ])
         .setup(|app| {
             runtime::seed_ident_cache(app.handle());

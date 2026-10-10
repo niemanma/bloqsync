@@ -46,6 +46,9 @@ audio-reactive **cinema mode** for DRM content such as Netflix.
 - **Named profiles**: save, load, rename and delete; store both settings and the
   bar ↔ monitor assignment
 - **Bar models**: per-bar LED count and edge distribution (built-in + custom)
+- **Animations / effects**: a dozen ready-made ones (breathe, candle, aurora,
+  rainbow wave, chase, meteor, scanner, fire, sparkle, colour wipe, …) plus your
+  own, with a live preview — no capture needed
 - Schematic **multi-monitor map** with monitor names and per-bar assignment
 - **Cinema mode** (audio-reactive) for DRM content
 - **English / German** UI, switchable and remembered
@@ -60,6 +63,10 @@ audio-reactive **cinema mode** for DRM content such as Netflix.
 | Cinema mode | Static colour |
 |---|---|
 | ![Cinema mode](docs/screenshot-cinema.png) | ![Static colour](docs/screenshot-color.png) |
+
+| Effects / animations |
+|---|
+| ![Effects](docs/screenshot-effects.png) |
 
 ## Installation
 
@@ -131,6 +138,27 @@ distribution decides which part of the screen each LED samples.
 - A profile can mix models, e.g. one 24″ and one 27″ bar.
 - If a model's LED count or distribution does not match the physical bar, the UI
   flags it as a conflict.
+
+### Animations / effects
+
+The **Effects** tab plays time-based light animations that need **no screen
+capture** (useful as ambient light without a movie playing):
+
+- Calm: *Breathe, Colour cycle, Candle flicker, Aurora, Static*.
+- Moving: *Rainbow wave, Chase, Meteor, Scanner, Fire, Sparkle, Colour wipe*.
+- **Build your own** on a 2D colour board: place colour points (Hue ×
+  Saturation, with a brightness per point) and connect them with **vectors**. Each
+  vector has a duration and a mode — *normal* walks the colour-board path, *swift*
+  jumps straight between the two colours. Pick a **movement** (stationary, rotate
+  left/right, march left/right), a **speed** and the loop length; a **live preview**
+  shows the result immediately. Saved animation live in the config.
+- Built-ins ship as JSON in [`gui/animations/`](gui/animations) and use the exact
+  same structure as user animations, so a shipped effect can be tweaked freely.
+
+Under the hood an animation is a small, portable description — a closed chain of
+points plus a movement — rendered to one colour per LED (see `src/anim.rs`); the
+same JSON schema is used for shipped and user animations, so new effects only
+need one renderer function.
 
 ### Languages
 

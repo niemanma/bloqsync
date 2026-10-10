@@ -29,6 +29,7 @@
     <nav class="segmented" id="mode-tabs" role="tablist" aria-label="Mode">
       <button class="seg is-active" data-mode="screen" role="tab" type="button" data-i18n="mode.screen">Screen</button>
       <button class="seg" data-mode="cinema" role="tab" type="button" data-i18n="mode.cinema">Cinema</button>
+      <button class="seg" data-mode="anim" role="tab" type="button" data-i18n="mode.anim">Effects</button>
       <button class="seg" data-mode="color" role="tab" type="button" data-i18n="mode.color">Colour</button>
     </nav>
 
@@ -127,6 +128,79 @@
           </div>
           <div class="actions">
             <button id="resume-sync" class="btn primary" type="button" data-i18n="color.resume">Back to screen sync</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Animations ─────────────────────────────────────────── -->
+      <section id="panel-anim" class="panel hidden">
+        <article class="card">
+          <div class="card-head">
+            <h2 data-i18n="anim.title">Effects</h2>
+            <span class="hint" data-i18n-tip="anim.tip">?</span>
+          </div>
+          <div id="anim-preview" class="anim-preview" aria-hidden="true"></div>
+          <div class="actions">
+            <button id="anim-play" class="btn primary" type="button" data-i18n="anim.play">Play on bars</button>
+            <button id="anim-stop" class="btn" type="button" data-i18n="anim.stop">Stop</button>
+          </div>
+          <div id="anim-gallery" class="anim-gallery"></div>
+        </article>
+
+        <article class="card" id="card-anim-edit">
+          <div class="card-head">
+            <h2 data-i18n="anim.edit">Create / edit animation</h2>
+            <span class="hint" data-i18n-tip="anim.editTip">?</span>
+          </div>
+          <div class="grid">
+            <label class="field"><span data-i18n="anim.name">Name</span>
+              <input type="text" id="anim-name" data-i18n-placeholder="anim.namePlaceholder" maxlength="40" />
+            </label>
+            <label class="field"><span data-i18n="anim.movement">Movement</span>
+              <select id="anim-movement"></select>
+            </label>
+            <label class="field grow" id="anim-speed-field"><span data-i18n="anim.speed">Speed</span>
+              <input type="range" id="anim-speed" min="0" max="100" value="25" />
+              <output id="anim-speed-out">0.25</output>
+            </label>
+            <label class="field"><span id="anim-cycles-label" data-i18n="anim.cyclesRot">Rotations per loop</span>
+              <input type="number" id="anim-cycles" min="0.1" max="60" step="0.5" value="1" />
+            </label>
+            <label class="field grow"><span data-i18n="anim.brightness">Brightness</span>
+              <input type="range" id="anim-brightness" min="0" max="100" value="90" />
+              <output id="anim-brightness-out">0.90</output>
+            </label>
+          </div>
+
+          <p class="lead" data-i18n="anim.boardHint">Click the board to add colour points and drag them to move. Dashed vectors jump straight between colours (swift); solid ones walk the board path.</p>
+          <canvas id="anim-board" class="anim-board" width="640" height="360"></canvas>
+
+          <div class="anim-points-head">
+            <span data-i18n="anim.points">Points</span>
+            <span class="muted" id="anim-duration-sum"></span>
+          </div>
+          <table class="anim-points">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th data-i18n="anim.colour">Colour</th>
+                <th data-i18n="anim.pointBrightnessPct">Brightness %</th>
+                <th data-i18n="anim.pointDurationPct">Duration %</th>
+                <th data-i18n="anim.pointSwiftShort">Swift</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="anim-points-body"></tbody>
+          </table>
+          <div class="actions">
+            <button id="anim-apply" class="btn" type="button" data-i18n="anim.apply">Check durations</button>
+            <button id="anim-add-point" class="btn" type="button" data-i18n="anim.addPoint">Add point</button>
+            <span id="anim-apply-msg" class="anim-msg"></span>
+          </div>
+
+          <div class="actions">
+            <button id="anim-save" class="btn primary" type="button" data-i18n="anim.save">Save</button>
+            <button id="anim-new" class="btn ghost" type="button" data-i18n="anim.new">New</button>
           </div>
         </article>
       </section>

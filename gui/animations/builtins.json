@@ -1,0 +1,178 @@
+[
+  {
+    "id": "breathe",
+    "name": "Breathe",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 7,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.08, "sat": 0.85, "brightness": 1.0, "duration": 50 },
+      { "hue": 0.08, "sat": 0.85, "brightness": 0.12, "duration": 50 }
+    ]
+  },
+  {
+    "id": "color-cycle",
+    "name": "Color Cycle",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 15,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.0, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.1667, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.3333, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.5, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.6667, "sat": 1.0, "brightness": 1.0, "duration": 16 },
+      { "hue": 0.8333, "sat": 1.0, "brightness": 1.0, "duration": 16 }
+    ]
+  },
+  {
+    "id": "candle",
+    "name": "Candle Flicker",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 5,
+    "brightness": 0.85,
+    "points": [
+      { "hue": 0.08, "sat": 1.0, "brightness": 0.85, "duration": 12.5 },
+      { "hue": 0.06, "sat": 0.9, "brightness": 1.0, "duration": 12.5 },
+      { "hue": 0.09, "sat": 1.0, "brightness": 0.55, "duration": 12.5 },
+      { "hue": 0.07, "sat": 0.85, "brightness": 0.95, "duration": 12.5 },
+      { "hue": 0.05, "sat": 1.0, "brightness": 0.7, "duration": 12.5 },
+      { "hue": 0.09, "sat": 0.95, "brightness": 0.9, "duration": 12.5 },
+      { "hue": 0.07, "sat": 1.0, "brightness": 0.45, "duration": 12.5 },
+      { "hue": 0.08, "sat": 0.9, "brightness": 0.8, "duration": 12.5 }
+    ]
+  },
+  {
+    "id": "aurora",
+    "name": "Aurora",
+    "movement": "rotate_right",
+    "speed": 0.15,
+    "cycles": 1,
+    "brightness": 0.7,
+    "points": [
+      { "hue": 0.33, "sat": 0.9, "brightness": 0.7, "duration": 17 },
+      { "hue": 0.45, "sat": 1.0, "brightness": 0.9, "duration": 17 },
+      { "hue": 0.55, "sat": 0.8, "brightness": 0.6, "duration": 17 },
+      { "hue": 0.68, "sat": 0.9, "brightness": 0.85, "duration": 17 },
+      { "hue": 0.5, "sat": 0.7, "brightness": 0.55, "duration": 16 },
+      { "hue": 0.4, "sat": 1.0, "brightness": 0.8, "duration": 16 }
+    ]
+  },
+  {
+    "id": "static",
+    "name": "Static / Solid",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 4,
+    "brightness": 0.7,
+    "points": [
+      { "hue": 0.08, "sat": 1.0, "brightness": 1.0, "duration": 100 }
+    ]
+  },
+  {
+    "id": "rainbow-wave",
+    "name": "Rainbow Wave",
+    "movement": "rotate_right",
+    "speed": 0.2,
+    "cycles": 1,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.0, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.1667, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.3333, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.5, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.6667, "sat": 1.0, "brightness": 1.0, "duration": 16 },
+      { "hue": 0.8333, "sat": 1.0, "brightness": 1.0, "duration": 16 }
+    ]
+  },
+  {
+    "id": "chase",
+    "name": "Chase",
+    "movement": "rotate_right",
+    "speed": 0.5,
+    "cycles": 1,
+    "brightness": 0.95,
+    "points": [
+      { "hue": 0.0, "sat": 0.0, "brightness": 1.0, "duration": 15 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.5, "duration": 15 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 20 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 25 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 25 }
+    ]
+  },
+  {
+    "id": "meteor",
+    "name": "Meteor",
+    "movement": "rotate_right",
+    "speed": 0.7,
+    "cycles": 1,
+    "brightness": 1.0,
+    "points": [
+      { "hue": 0.0, "sat": 0.0, "brightness": 1.0, "duration": 12 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.6, "duration": 16 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.25, "duration": 20 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 26 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 26 }
+    ]
+  },
+  {
+    "id": "scanner",
+    "name": "Scanner",
+    "movement": "march_right",
+    "speed": 0.5,
+    "cycles": 1,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 40 },
+      { "hue": 0.5, "sat": 1.0, "brightness": 1.0, "duration": 20 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 40 }
+    ]
+  },
+  {
+    "id": "fire",
+    "name": "Fire",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 4,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.02, "sat": 1.0, "brightness": 0.6, "duration": 17 },
+      { "hue": 0.06, "sat": 1.0, "brightness": 1.0, "duration": 17 },
+      { "hue": 0.03, "sat": 1.0, "brightness": 0.5, "duration": 17 },
+      { "hue": 0.08, "sat": 0.95, "brightness": 0.9, "duration": 17 },
+      { "hue": 0.04, "sat": 1.0, "brightness": 0.7, "duration": 16 },
+      { "hue": 0.09, "sat": 1.0, "brightness": 0.4, "duration": 16 }
+    ]
+  },
+  {
+    "id": "sparkle",
+    "name": "Sparkle",
+    "movement": "stationary",
+    "speed": 0.25,
+    "cycles": 3,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.0, "sat": 0.0, "brightness": 1.0, "duration": 8 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 42 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.9, "duration": 8 },
+      { "hue": 0.0, "sat": 0.0, "brightness": 0.0, "duration": 42 }
+    ]
+  },
+  {
+    "id": "wipe",
+    "name": "Color Wipe",
+    "movement": "rotate_right",
+    "speed": 0.4,
+    "cycles": 1,
+    "brightness": 0.9,
+    "points": [
+      { "hue": 0.0, "sat": 1.0, "brightness": 1.0, "duration": 48 },
+      { "hue": 0.6667, "sat": 1.0, "brightness": 1.0, "duration": 2, "swift": true },
+      { "hue": 0.6667, "sat": 1.0, "brightness": 1.0, "duration": 48 },
+      { "hue": 0.0, "sat": 1.0, "brightness": 1.0, "duration": 2, "swift": true }
+    ]
+  }
+]

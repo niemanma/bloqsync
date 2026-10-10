@@ -1,5 +1,6 @@
 //! bloqsync – high-performance ambient sync for ROBOBLOQ SyncLight bars.
 
+pub mod anim;
 pub mod audio;
 pub mod capture;
 pub mod cinema;

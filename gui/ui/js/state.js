@@ -9,6 +9,8 @@ export const state = {
   config: null,
   presets: [],
   barModels: [],
+  animations: [],
+  animEditId: null,   // id of the animation currently loaded in the editor
   rowState: {},       // bar key -> { stream, reverse, modelId }
   activeMode: "screen",
   expert: false,
@@ -190,6 +192,27 @@ export async function deleteBarModel(id) {
   await loadBarModels();
 }
 
+// ── Animations ──────────────────────────────────────────────────────
+
+export async function loadAnimations() {
+  state.animations = await invoke("list_animations").catch(() => state.animations);
+  return state.animations;
+}
+
+export async function saveAnimation(animation) {
+  await invoke("save_animation", { animation });
+  await loadAnimations();
+}
+
+export async function deleteAnimation(id) {
+  await invoke("delete_animation", { id });
+  await loadAnimations();
+}
+
+export function animationById(id) {
+  return state.animations.find((a) => a.id === id) || null;
+}
+
 export function currentConfig() {
   return {
     bars: currentBars(),
@@ -263,7 +286,7 @@ export function setMode(mode) {
   document.querySelectorAll("#mode-tabs .seg").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.mode === mode);
   });
-  ["screen", "cinema", "color"].forEach((m) => {
+  ["screen", "cinema", "color", "anim"].forEach((m) => {
     $("#panel-" + m)?.classList.toggle("hidden", m !== mode);
   });
   localStorage.setItem("bloqsync.mode", mode);

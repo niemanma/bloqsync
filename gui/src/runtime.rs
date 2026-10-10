@@ -4,7 +4,8 @@
 use crate::config::{read_config, update_config, BarConfig, Config, Ident};
 use crate::logging::log;
 use crate::monitors;
-use crate::state::{AppState, BarRuntime, CinemaRuntime};
+use crate::state::{AppState, AnimationRuntime, BarRuntime, CinemaRuntime};
+use bloqsync::anim::{Animation, Animator};
 use bloqsync::capture::StreamInfo;
 use bloqsync::cinema::{Cinema, CinemaParams};
 use bloqsync::device::{enumerate, find_by_identity, Device, DeviceInfo};
@@ -217,6 +218,7 @@ pub(crate) fn cinema_start_inner(
     contrast: f32,
 ) -> Result<(), String> {
     cinema_stop_inner(state);
+    animation_stop_inner(state);
     *state.sync_paused.lock().unwrap() = true;
     stop_all_inner(state);
     // Keep the screen capture (and therefore the monitor assignment) alive so
@@ -268,6 +270,78 @@ pub(crate) fn cinema_start_inner(
         .map_err(|e| e.to_string())?;
     *state.cinema.lock().unwrap() = Some(CinemaRuntime {
         audio,
+        running,
+        devices,
+        thread,
+    });
+    Ok(())
+}
+
+pub(crate) fn animation_stop_inner(state: &AppState) {
+    if let Some(a) = state.animation.lock().unwrap().take() {
+        a.stop();
+    }
+}
+
+/// Play a time-based [`Animation`] on every connected bar. Pauses the screen
+/// sync so the bar is not overwritten; restart it with `resume_sync`.
+pub(crate) fn animation_start_inner(
+    state: &AppState,
+    anim: Animation,
+    fps: u32,
+    brightness: Option<u8>,
+) -> Result<(), String> {
+    animation_stop_inner(state);
+    cinema_stop_inner(state);
+    *state.sync_paused.lock().unwrap() = true;
+    stop_all_inner(state);
+
+    let mut devices = Vec::new();
+    for info in enumerate() {
+        if let Ok(d) = Device::open(&info) {
+            if let Some(b) = brightness {
+                let _ = d.set_brightness(b);
+            }
+            devices.push(Arc::new(d));
+        }
+    }
+    if devices.is_empty() {
+        return Err("keine Leiste gefunden".into());
+    }
+    let period = Duration::from_millis(1000 / fps.clamp(5, 60) as u64);
+    log(&format!(
+        "animation '{}' ({}) started on {} bar(s) at {}fps",
+        anim.name,
+        anim.movement,
+        devices.len(),
+        fps.clamp(5, 60)
+    ));
+    let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let running_t = running.clone();
+    let devices_thread = devices.clone();
+    let spec = anim;
+    let thread = std::thread::Builder::new()
+        .name("bloqsync-anim".into())
+        .spawn(move || {
+            let mut animators: Vec<Animator> =
+                (0..devices_thread.len()).map(|_| Animator::new()).collect();
+            let mut last = Instant::now();
+            while running_t.load(std::sync::atomic::Ordering::Relaxed) {
+                let tick = Instant::now();
+                let dt = tick.duration_since(last).as_secs_f32();
+                last = tick;
+                for (i, d) in devices_thread.iter().enumerate() {
+                    let cols = animators[i].render(dt, d.led_count, &spec);
+                    let _ = d.send_colors_paced(&cols, Duration::from_millis(3), 8);
+                }
+                let e = tick.elapsed();
+                if e < period {
+                    std::thread::sleep(period - e);
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    *state.animation.lock().unwrap() = Some(AnimationRuntime {
         running,
         devices,
         thread,

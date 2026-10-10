@@ -37,6 +37,24 @@ impl CinemaRuntime {
     }
 }
 
+/// A running LED animation (screen sync is paused while it plays).
+pub(crate) struct AnimationRuntime {
+    pub(crate) running: Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) devices: Vec<Arc<Device>>,
+    pub(crate) thread: std::thread::JoinHandle<()>,
+}
+
+impl AnimationRuntime {
+    pub(crate) fn stop(self) {
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        let _ = self.thread.join();
+        for d in &self.devices {
+            let _ = d.set_persistent_color([255, 200, 100]);
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct AppState {
     pub(crate) capture: Mutex<Option<Arc<Capture>>>,
@@ -46,5 +64,6 @@ pub(crate) struct AppState {
     /// True while the user shows a static colour / cinema (screen sync paused).
     pub(crate) sync_paused: Mutex<bool>,
     pub(crate) cinema: Mutex<Option<CinemaRuntime>>,
+    pub(crate) animation: Mutex<Option<AnimationRuntime>>,
     pub(crate) identify: Mutex<Option<IdentifyRuntime>>,
 }
