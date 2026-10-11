@@ -1,7 +1,7 @@
 // Entry point: wire the panels, load state and keep the status fresh.
 
 import { invoke, listen } from "./js/api.js";
-import { $, $$, bindSlider } from "./js/util.js";
+import { $, $$, bindSlider, initTooltips } from "./js/util.js";
 import {
   state, loadConfig, loadDevices, loadPresets, loadBarModels, loadAnimations,
   setExpert, setMode, restoreActivePreset,
@@ -99,6 +99,7 @@ async function boot() {
   initScreen();
   initLive();
   initParticles();
+  initTooltips();
   $("#sync-start")?.addEventListener("click", () => invoke("resume_sync").catch(() => {}));
   $("#stop-everything")?.addEventListener("click", () => invoke("stop_everything").catch(() => {}));
   initCinema();

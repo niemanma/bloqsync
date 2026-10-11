@@ -20,6 +20,8 @@ export default {
   "metrics.mode": "Mode",
   "live.title": "Live",
   "mode.sync": "Sync",
+  "sync.connect": "Connect bars into one strip",
+  "sync.connectTip": "Run effects once across all bars (left to right) instead of once per bar.",
   "app.settings.tip": "Settings (expert mode)",
   "settings.title": "Settings",
   "settings.cinema": "Cinema fine-tuning",

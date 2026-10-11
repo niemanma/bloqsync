@@ -10,7 +10,7 @@ const PERSISTED_CONTROLS = [
   "filter",
   "fps", "smooth", "brightness", "filter-strength", "max-frames",
   "cin-sens", "cin-bri", "cin-floor", "cin-smooth", "cin-contrast", "cin-pulse",
-  "cin-color", "custom-color",
+  "cin-color", "custom-color", "connect-bars",
 ];
 
 export function renderDevices() {

@@ -93,6 +93,9 @@ pub(crate) struct Config {
     pub(crate) autostart: bool,
     #[serde(default)]
     pub(crate) autostart_sync: bool,
+    /// Connect the bars into one continuous strip (effects run once across all).
+    #[serde(default)]
+    pub(crate) connected: bool,
     /// Per monitor-setup profiles (auto-created, auto-restored).
     #[serde(default)]
     pub(crate) profiles: Vec<Profile>,
@@ -175,6 +178,7 @@ impl Default for Config {
             restore_token: None,
             autostart: false,
             autostart_sync: false,
+            connected: false,
             profiles: Vec::new(),
             presets: Vec::new(),
             bar_models: Vec::new(),

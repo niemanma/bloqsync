@@ -81,6 +81,7 @@ export function readSettings() {
     max_frames: int("max-frames", 0),
     custom_color: $("#custom-color")?.value || "#ff8800",
     cinema_color: $("#cin-color")?.value || "#5a2882",
+    connected: $("#connect-bars")?.checked ?? false,
     cinema_sensitivity: int("cin-sens", 100) / 100,
     cinema_brightness: int("cin-bri", 70) / 100,
     cinema_floor: int("cin-floor", 35) / 100,
@@ -112,6 +113,8 @@ export function setSettings(s) {
   put("max-frames", s.max_frames ?? 0);
   const custom = $("#custom-color");
   if (custom) custom.value = s.custom_color || "#ff8800";
+  const connect = $("#connect-bars");
+  if (connect) connect.checked = !!s.connected;
   const cinema = $("#cin-color");
   if (cinema) cinema.value = s.cinema_color || "#5a2882";
   put("cin-sens", Math.round((s.cinema_sensitivity ?? 1.0) * 100));

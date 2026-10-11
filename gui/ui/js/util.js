@@ -62,3 +62,49 @@ export function bindSlider(id, outId, format) {
   update();
   return input;
 }
+/** One floating tooltip for every `[data-tip]` element, clamped to the
+ *  viewport so it is never clipped by the window or a panel. */
+export function initTooltips() {
+  let el = null;
+  const ensure = () => {
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "bq-tooltip";
+      document.body.appendChild(el);
+    }
+    return el;
+  };
+  const show = (target) => {
+    const text = target.getAttribute("data-tip");
+    if (!text) return;
+    const tip = ensure();
+    tip.textContent = text;
+    tip.classList.add("show");
+    const r = target.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const pad = 8;
+    let left = r.left + r.width / 2 - t.width / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - t.width - pad));
+    let top = r.top - t.height - pad;
+    if (top < pad) top = r.bottom + pad;                     // flip below
+    top = Math.min(top, window.innerHeight - t.height - pad);
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(Math.max(pad, top))}px`;
+  };
+  const hide = () => el && el.classList.remove("show");
+  document.addEventListener("mouseover", (e) => {
+    const t = e.target.closest && e.target.closest("[data-tip]");
+    if (t) show(t);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const t = e.target.closest && e.target.closest("[data-tip]");
+    if (t && !t.contains(e.relatedTarget)) hide();
+  });
+  document.addEventListener("focusin", (e) => {
+    const t = e.target.closest && e.target.closest("[data-tip]");
+    if (t) show(t);
+  });
+  document.addEventListener("focusout", hide);
+  window.addEventListener("scroll", hide, true);
+  window.addEventListener("blur", hide);
+}

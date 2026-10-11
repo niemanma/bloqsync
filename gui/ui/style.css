@@ -1009,3 +1009,21 @@ body {
 .settings-body .preset-row { gap: 8px; }
 .settings-body .preset-row .preset-name { font-size: 13px; }
 .settings-body .profile-current { margin-bottom: 8px; }
+
+/* Connect-bars switch next to the Sync buttons */
+.connect-row { margin: 0 0 0 auto; align-self: center; font-size: 13px; color: var(--muted); }
+.connect-row .switch-label { color: var(--muted); font-size: 13px; }
+.connect-row input:checked ~ .switch-label { color: var(--fg); }
+
+/* JS tooltips: disable the CSS pseudo tooltips, which got clipped by panels. */
+[data-tip]::after { content: none !important; }
+.bq-tooltip {
+  position: fixed; z-index: 1000; max-width: 260px;
+  background: #0b0c10; color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; line-height: 1.35;
+  white-space: normal; pointer-events: none;
+  opacity: 0; transition: opacity .12s;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+.bq-tooltip.show { opacity: 1; }

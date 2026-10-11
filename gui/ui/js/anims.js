@@ -369,6 +369,7 @@ async function playAnimation(anim) {
     animation: norm,
     fps: anim.fps || 30,
     brightness: Number.isFinite(brightness) ? brightness : null,
+    connected: $("#connect-bars")?.checked ?? false,
   }).catch(() => {});
 }
 

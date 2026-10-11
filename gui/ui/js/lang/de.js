@@ -19,6 +19,8 @@ export default {
   "metrics.mode": "Modus",
   "live.title": "Live",
   "mode.sync": "Sync",
+  "sync.connect": "Leisten zu einer verbinden",
+  "sync.connectTip": "Effekte einmal über alle Leisten laufen lassen (links→rechts) statt pro Leiste.",
   "app.settings.tip": "Einstellungen (Expertenmodus)",
   "settings.title": "Einstellungen",
   "settings.cinema": "Kino-Feinjustierung",

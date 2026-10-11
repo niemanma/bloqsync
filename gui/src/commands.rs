@@ -490,9 +490,11 @@ pub(crate) fn animation_start(
     animation: Animation,
     fps: Option<u32>,
     brightness: Option<u8>,
+    connected: Option<bool>,
 ) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
-    runtime::animation_start_inner(&state, animation, fps.unwrap_or(30), brightness)
+    let connected = connected.unwrap_or_else(|| read_config().connected);
+    runtime::animation_start_inner(&state, animation, fps.unwrap_or(30), brightness, connected)
 }
 
 #[tauri::command]

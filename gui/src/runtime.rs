@@ -318,55 +318,104 @@ pub(crate) fn animation_start_inner(
     anim: Animation,
     fps: u32,
     brightness: Option<u8>,
+    connected: bool,
 ) -> Result<(), String> {
     animation_stop_inner(state);
     cinema_stop_inner(state);
     *state.sync_paused.lock().unwrap() = true;
     stop_all_inner(state);
 
-    let mut devices = Vec::new();
+    let cfg = read_config();
+    // (key, leds, reverse), ordered left→right by the bar's monitor.
+    let mut bars: Vec<(String, usize, bool, Arc<Device>)> = Vec::new();
     for info in enumerate() {
         if let Ok(d) = Device::open(&info) {
             if let Some(b) = brightness {
                 let _ = d.set_brightness(b);
             }
-            devices.push(Arc::new(d));
+            let key = device_key(&d);
+            let bc = cfg.bars.iter().find(|b| b.bar_path == key);
+            let reverse = bc.map(|b| b.reverse).unwrap_or(false);
+            bars.push((key, d.led_count, reverse, Arc::new(d)));
         }
     }
-    if devices.is_empty() {
+    // Order by monitor index so a connected effect flows left→right.
+    bars.sort_by(|a, b| {
+        let sa = cfg.bars.iter().find(|x| x.bar_path == a.0).map(|x| x.stream_index).unwrap_or(0);
+        let sb = cfg.bars.iter().find(|x| x.bar_path == b.0).map(|x| x.stream_index).unwrap_or(0);
+        sa.cmp(&sb).then_with(|| a.0.cmp(&b.0))
+    });
+    if bars.is_empty() {
         return Err("keine Leiste gefunden".into());
     }
+    let devices: Vec<Arc<Device>> = bars.iter().map(|b| b.3.clone()).collect();
+    let meta: Vec<(String, usize, bool)> = bars.iter().map(|b| (b.0.clone(), b.1, b.2)).collect();
     let period = Duration::from_millis(1000 / fps.clamp(5, 60) as u64);
     log(&format!(
-        "animation '{}' ({}) started on {} bar(s) at {}fps",
+        "animation '{}' ({}) started on {} bar(s) at {}fps{}",
         anim.name,
         anim.movement,
         devices.len(),
-        fps.clamp(5, 60)
+        fps.clamp(5, 60),
+        if connected { " [connected]" } else { "" }
     ));
     let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let running_t = running.clone();
     let devices_thread = devices.clone();
+    let meta_thread = meta.clone();
     let live = state.live.clone();
     let spec = anim;
     let thread = std::thread::Builder::new()
         .name("bloqsync-anim".into())
         .spawn(move || {
-            let mut animators: Vec<Animator> =
-                (0..devices_thread.len()).map(|_| Animator::new()).collect();
-            let mut last = Instant::now();
-            while running_t.load(std::sync::atomic::Ordering::Relaxed) {
-                let tick = Instant::now();
-                let dt = tick.duration_since(last).as_secs_f32();
-                last = tick;
-                for (i, d) in devices_thread.iter().enumerate() {
-                    let cols = animators[i].render(dt, d.led_count, &spec);
-                    publish(&live, &device_key(d), &cols);
-                    let _ = d.send_colors_paced(&cols, Duration::from_millis(3), 8);
+            let gap = Duration::from_millis(3);
+            if connected {
+                let total: usize = meta_thread.iter().map(|m| m.1).sum();
+                let mut animator = Animator::new();
+                let mut last = Instant::now();
+                while running_t.load(std::sync::atomic::Ordering::Relaxed) {
+                    let tick = Instant::now();
+                    let dt = tick.duration_since(last).as_secs_f32();
+                    last = tick;
+                    if total > 0 {
+                        let all = animator.render(dt, total, &spec);
+                        let mut off = 0usize;
+                        for (i, (key, leds, rev)) in meta_thread.iter().enumerate() {
+                            let end = (off + leds).min(all.len());
+                            if off >= all.len() { break; }
+                            let slice = &all[off..end];
+                            off = end;
+                            let cols: Vec<[u8; 3]> = if *rev {
+                                slice.iter().rev().copied().collect()
+                            } else {
+                                slice.to_vec()
+                            };
+                            publish(&live, key, &cols);
+                            let _ = devices_thread[i].send_colors_paced(&cols, gap, 8);
+                        }
+                    }
+                    let e = tick.elapsed();
+                    if e < period {
+                        std::thread::sleep(period - e);
+                    }
                 }
-                let e = tick.elapsed();
-                if e < period {
-                    std::thread::sleep(period - e);
+            } else {
+                let mut animators: Vec<Animator> =
+                    (0..devices_thread.len()).map(|_| Animator::new()).collect();
+                let mut last = Instant::now();
+                while running_t.load(std::sync::atomic::Ordering::Relaxed) {
+                    let tick = Instant::now();
+                    let dt = tick.duration_since(last).as_secs_f32();
+                    last = tick;
+                    for (i, d) in devices_thread.iter().enumerate() {
+                        let cols = animators[i].render(dt, d.led_count, &spec);
+                        publish(&live, &device_key(d), &cols);
+                        let _ = d.send_colors_paced(&cols, gap, 8);
+                    }
+                    let e = tick.elapsed();
+                    if e < period {
+                        std::thread::sleep(period - e);
+                    }
                 }
             }
         })
