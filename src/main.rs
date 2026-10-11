@@ -281,7 +281,7 @@ fn main() -> Result<()> {
                 reverse,
                 ..Default::default()
             };
-            let sync = spawn(device.clone(), slot, cfg)?;
+            let sync = spawn(device.clone(), slot, cfg, std::sync::Arc::new(std::sync::Mutex::new(Vec::new())))?;
             println!("Sync läuft ({}s, {} fps, smooth={})", seconds, fps, smooth);
             let start = Instant::now();
             while start.elapsed() < Duration::from_secs(seconds) {

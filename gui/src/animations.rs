@@ -7,11 +7,15 @@
 
 use bloqsync::anim::Animation;
 
-/// Animations compiled into the application.
-const BUILTIN: &str = include_str!("../animations/builtins.json");
+/// Every embedded animation file (one JSON file per animation in `animations/`).
+/// The list is generated at build time by `build.rs`.
+const FILES: &[&str] = include!(concat!(env!("OUT_DIR"), "/animations_index.rs"));
 
 pub(crate) fn builtin() -> Vec<Animation> {
-    serde_json::from_str::<Vec<Animation>>(BUILTIN).unwrap_or_default()
+    FILES
+        .iter()
+        .filter_map(|raw| serde_json::from_str::<Animation>(raw).ok())
+        .collect()
 }
 
 #[cfg(test)]

@@ -33,7 +33,21 @@ export function renderModels() {
 }
 
 export function initModels() {
-  $("#model-add")?.addEventListener("click", async () => {
+  const form = $("#model-form");
+
+  const openForm = () => {
+    if (!form) return;
+    form.classList.remove("hidden");
+    $("#model-name")?.focus();
+  };
+  const closeForm = () => {
+    form?.classList.add("hidden");
+  };
+
+  $("#model-add")?.addEventListener("click", openForm);
+  $("#model-cancel")?.addEventListener("click", closeForm);
+
+  $("#model-save")?.addEventListener("click", async () => {
     const name = $("#model-name").value.trim();
     if (!name) {
       $("#model-name").focus();
@@ -43,15 +57,27 @@ export function initModels() {
     const model = {
       id: `user-${slug || "model"}-${Date.now().toString(36)}`,
       name,
+      match: {
+        vendor_id: ($("#model-vendor")?.value || "1a86").trim(),
+        product_id: ($("#model-product")?.value || "fe07").trim(),
+        usage_page: ($("#model-usage")?.value || "ff00").trim(),
+      },
       leds: +$("#model-leds").value || 0,
       left: +$("#model-left").value || 0,
       top: +$("#model-top").value || 0,
       bottom: +$("#model-bottom").value || 0,
       right: +$("#model-right").value || 0,
+      protocol: {
+        report_size: +($("#model-report")?.value || 64),
+        max_sections_per_frame: +($("#model-sections")?.value || 11),
+        max_leds: +($("#model-maxleds")?.value || 254),
+        inter_frame_gap_ms: +($("#model-gap")?.value || 3),
+      },
     };
     await saveBarModel(model);
     await reloadConfigRaw();
     $("#model-name").value = "";
+    closeForm();
     renderModels();
     renderBars();
   });

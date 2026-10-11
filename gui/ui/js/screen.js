@@ -208,6 +208,14 @@ async function openCapture() {
 
 export function initScreen() {
   $("#connect-monitors")?.addEventListener("click", openCapture);
+  $("#sync-enabled")?.addEventListener("change", async (event) => {
+    if (event.target.checked) {
+      $$(".bar").forEach((row) => row._start?.());
+    } else {
+      await invoke("stop_all").catch(() => {});
+      $$(".bar").forEach((row) => setRunning(row, false));
+    }
+  });
   $("#disconnect-monitors")?.addEventListener("click", async () => {
     await invoke("close_capture").catch(() => {});
     state.streams = [];

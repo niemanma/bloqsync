@@ -115,7 +115,7 @@ body {
 }
 
 /* ── Layout ──────────────────────────────────────────────── */
-.layout { max-width: 880px; margin: 0 auto; padding: 20px 22px 48px; }
+.layout { max-width: 1160px; margin: 0 auto; padding: 20px 22px 48px; }
 
 .segmented {
   display: inline-flex;
@@ -488,3 +488,524 @@ body:not(.expert) .expert-only { display: none !important; }
 .anim-msg.ok { color: #4ad07a; }
 .anim-msg.err { color: var(--warn); }
 .anim-points input.pt-color { width: 40px; height: 26px; padding: 0; cursor: pointer; }
+
+/* ── Mode accordion ───────────────────────────────────────────────── */
+.accordion {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin-bottom: var(--gap);
+}
+.acc-head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  background: transparent; border: 0; color: var(--fg);
+  padding: 16px 18px; font-size: 16px; font-weight: 650; cursor: pointer; text-align: left;
+}
+.acc-head:hover { background: var(--surface-3); }
+.acc-name { flex: 1; }
+.acc-chevron {
+  width: 9px; height: 9px; flex: none;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); opacity: .55; transition: transform .18s ease;
+}
+.accordion.is-open .acc-chevron { transform: rotate(45deg); }
+.acc-content { display: none; padding: 0 14px 14px; }
+.accordion.is-open .acc-content { display: block; }
+.accordion .acc-content > .card { margin: 0 0 12px; }
+.accordion .acc-content > .card:last-child { margin-bottom: 0; }
+.acc-hint { float: right; }
+
+/* ── Settings overlay (expert) ────────────────────────────────────── */
+.settings-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .45);
+  opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 40;
+}
+.settings-backdrop.open { opacity: 1; pointer-events: auto; }
+.settings {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 92vw;
+  background: var(--surface-2); border-left: 1px solid var(--border);
+  transform: translateX(100%); transition: transform .24s ease;
+  z-index: 41; display: flex; flex-direction: column; box-shadow: var(--shadow);
+}
+.settings.open { transform: translateX(0); }
+.settings-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.settings-head h2 { flex: 1; margin: 0; font-size: 16px; }
+.settings-body {
+  padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+}
+.settings-body .card { margin: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Aurora theme v2 — near-black, violet/indigo accents, glow & motion
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #06060a;
+  --surface: #0f0f17;
+  --surface-2: #14141e;
+  --surface-3: #1c1c2a;
+  --border: #262636;
+  --fg: #eef0f6;
+  --muted: #9aa0b4;
+  --accent: #8b5cf6;
+  --accent-strong: #6d28d9;
+  --accent-fg: #ffffff;
+  --accent-cyan: #22d3ee;
+  --glow: rgba(139, 92, 246, .55);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 22px 60px rgba(0, 0, 0, .55);
+}
+
+body {
+  background:
+    radial-gradient(1200px 620px at 12% -12%, rgba(109, 40, 217, .30), transparent 60%),
+    radial-gradient(1000px 520px at 108% 4%, rgba(34, 211, 238, .12), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Top bar – glassy */
+.topbar {
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(10, 10, 16, .55);
+  backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 20;
+}
+.brand-mark { filter: drop-shadow(0 0 12px var(--glow)); }
+.brand-name { font-weight: 800; letter-spacing: .04em; }
+
+.status-pill {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.dot.on { background: var(--accent); box-shadow: 0 0 14px var(--glow); animation: bqPulse 1.8s ease-in-out infinite; }
+.dot.warn { background: var(--accent-cyan); box-shadow: 0 0 12px rgba(34, 211, 238, .5); }
+
+/* Cards */
+.card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 45%), var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.card-head h2 { font-weight: 750; letter-spacing: .01em; }
+
+/* Buttons */
+.btn {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  transition: transform .12s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+.btn:hover { transform: translateY(-1px); background: #232332; }
+.btn:active { transform: translateY(0); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-color: transparent; color: var(--accent-fg); font-weight: 700;
+  box-shadow: 0 8px 24px rgba(109, 40, 217, .45);
+}
+.btn.primary:hover { box-shadow: 0 10px 34px var(--glow); }
+.icon-btn { border-radius: 999px; transition: transform .12s ease, box-shadow .2s ease, background .2s; }
+.icon-btn:hover { background: var(--surface-3); box-shadow: 0 0 16px rgba(139, 92, 246, .25); }
+
+/* Accordion */
+.accordion {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0) 40%), var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: border-color .2s ease, box-shadow .25s ease;
+}
+.accordion.is-open { border-color: rgba(139, 92, 246, .45); box-shadow: 0 22px 60px rgba(0, 0, 0, .55), 0 0 40px rgba(109, 40, 217, .12); }
+.acc-head { font-size: 17px; font-weight: 750; padding: 18px 20px; }
+.acc-head:hover { background: rgba(139, 92, 246, .06); }
+.acc-chevron { border-color: var(--accent); opacity: .9; }
+.acc-content { animation: bqSlide .22s ease; }
+.acc-content > .card { background: var(--surface); box-shadow: none; }
+
+/* Switches (pill + glow) */
+.switch { position: relative; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+  width: 46px; height: 27px; border-radius: 999px;
+  background: var(--surface-3); border: 1px solid var(--border);
+  position: relative; transition: background .2s ease, box-shadow .2s ease;
+}
+.switch .track::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
+  border-radius: 50%; background: #e9e9f2; transition: transform .2s ease, background .2s ease;
+}
+.switch input:checked + .track {
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 18px var(--glow);
+}
+.switch input:checked + .track::after { transform: translateX(19px); background: #fff; }
+
+/* Settings overlay */
+.settings { background: #0c0c13; }
+.settings-head { border-bottom: 1px solid var(--border); }
+.settings-body .card { box-shadow: none; }
+
+/* Live mirror */
+.live-card {
+  background: linear-gradient(160deg, rgba(139, 92, 246, .14), rgba(20, 20, 32, .55) 55%), var(--surface-2);
+  border: 1px solid rgba(139, 92, 246, .30);
+  border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow);
+}
+.live-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+.live-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px var(--glow); animation: bqPulse 1.6s ease-in-out infinite; }
+.live-mode { margin-left: auto; color: var(--muted); font-size: 12px; letter-spacing: .02em; text-transform: none; font-weight: 600; }
+.live-strips { display: flex; flex-direction: column; gap: 12px; }
+.live-row { display: flex; align-items: center; gap: 12px; }
+.live-label { width: 92px; flex: none; color: var(--muted); font-size: 12px; font-weight: 600; }
+.live-bar { flex: 1; display: flex; gap: 2px; align-items: center; height: 20px; }
+.led { flex: 1 1 0; height: 16px; border-radius: 3px; background: #1b1b27; transition: background-color .12s linear, box-shadow .12s linear; }
+
+/* Recolour existing swatches a touch */
+.sw { border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); transition: transform .12s ease, box-shadow .2s ease; }
+.sw:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
+
+@keyframes bqPulse { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.12); } }
+@keyframes bqSlide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ── 2D dashboard grid ────────────────────────────────────────────── */
+.dash { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; align-items: start; }
+.dash > .live-card { grid-column: span 8; }
+.dash > .metrics-card { grid-column: span 4; }
+.dash > #panel-screen { grid-column: span 6; }
+.dash > #panel-cinema { grid-column: span 6; }
+.dash > #panel-anim { grid-column: span 12; }
+@media (max-width: 760px) {
+  .dash { grid-template-columns: 1fr; }
+  .dash > * { grid-column: auto !important; }
+}
+
+/* ── Metrics tile ─────────────────────────────────────────────────── */
+.metrics-card {
+  display: flex; flex-direction: column; gap: 14px;
+  background: linear-gradient(160deg, rgba(34, 211, 238, .10), rgba(20, 20, 32, .5) 60%), var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; box-shadow: var(--shadow);
+}
+.metric { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.metric-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.metric-value {
+  font-size: 20px; font-weight: 800;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ── Round, glossy colour swatches ────────────────────────────────── */
+.swatches { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.sw {
+  width: 46px; height: 46px; border-radius: 50%; border: 0; padding: 0;
+  background: var(--c, #333); position: relative; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), 0 8px 18px rgba(0, 0, 0, .45);
+  transition: transform .12s ease, box-shadow .2s ease;
+}
+.sw::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 46%);
+}
+.sw:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 10px 24px rgba(0, 0, 0, .55), 0 0 20px var(--c, transparent); }
+.sw.custom { display: grid; place-items: center; }
+.sw.custom input[type="color"] {
+  width: 46px; height: 46px; border: 0; padding: 0; border-radius: 50%; background: none; cursor: pointer;
+}
+
+/* ── Tighten the top bar status ───────────────────────────────────── */
+.status-pill, #status-text { white-space: nowrap; }
+
+/* ── Settings overlay: wider & contain controls ───────────────────── */
+.settings { width: 560px; }
+.settings-body { overflow-x: hidden; }
+.settings-body .row, .settings-body .grid, .settings-body .bar, .settings-body .bar-row { max-width: 100%; }
+.bar, .bar-row, .bar select, .bar-model, .field select, .field input, .input { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.field select, .field input { width: 100%; }
+
+/* ── Always-open sections (no accordion) ──────────────────────────── */
+.acc-content { display: block !important; }
+.acc-chevron { display: none !important; }
+.acc-head { cursor: default; padding: 14px 16px; }
+.acc-head:hover { background: transparent; }
+.accordion.is-open { border-color: var(--border); box-shadow: var(--shadow); }
+
+/* ── Compact to fit the window without scrolling ──────────────────── */
+.card { padding: 14px; }
+.accordion .acc-content { padding: 0 12px 12px; }
+.accordion .acc-content > .card { margin-bottom: 10px; }
+.dash { gap: 14px; }
+.live-card, .metrics-card { padding: 14px 16px; }
+.live-bar { height: 18px; }
+.led { height: 14px; }
+.anim-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 190px; overflow-y: auto; }
+
+/* ── Colour swatches: recessed depth via gradient + inset shadow ──── */
+.sw {
+  width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0;
+  background: var(--c, #333); position: relative; overflow: hidden;
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, .60),
+    inset 0 -2px 3px rgba(255, 255, 255, .12),
+    0 8px 16px rgba(0, 0, 0, .50);
+  transition: transform .12s ease, box-shadow .2s ease;
+}
+.sw::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 48%, rgba(0, 0, 0, .40));
+}
+.sw:hover { transform: scale(1.05); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .60), 0 0 22px var(--c, transparent); }
+
+/* Custom swatch: same depth/size, rainbow + plus, opens the picker */
+.sw.custom {
+  background: conic-gradient(from 210deg, #ff3b30, #ff9f0a, #ffd60a, #34c759, #0a84ff, #8b5cf6, #ff2d55, #ff3b30);
+  display: grid; place-items: center;
+}
+.sw.custom::after {
+  content: "+"; display: grid; place-items: center;
+  color: #fff; font-size: 24px; font-weight: 800; line-height: 1;
+  background: rgba(0, 0, 0, .30); text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
+  pointer-events: none;
+}
+.sw.custom input[type="color"] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: 0; padding: 0;
+}
+
+/* Compact pass to fit without scrolling */
+.card { padding: 12px; }
+.acc-head { padding: 12px 14px; font-size: 15px; }
+.accordion .acc-content { padding: 0 10px 10px; }
+.dash { gap: 12px; }
+.live-card, .metrics-card { padding: 12px 14px; }
+.live-head { margin-bottom: 10px; }
+.live-row { gap: 10px; }
+.grid { gap: 10px; }
+.actions { gap: 8px; }
+.monmap { margin: 6px 0; }
+
+/* ── Equal-height Sync/Cinema (no gap before Effects) ─────────────── */
+.dash { align-items: stretch; }
+.dash > .accordion { display: flex; flex-direction: column; height: 100%; }
+.dash > .accordion .acc-content { display: flex; flex-direction: column; flex: 1; }
+.dash > .accordion .acc-content > .card { flex: 1; margin-bottom: 0; }
+
+/* ── Effects: controls row + inline static colours ────────────────── */
+.effects-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.swatches.small { gap: 10px; }
+.swatches.small .sw { width: 30px; height: 30px; }
+.swatches.small .sw.custom input[type="color"] { width: 30px; height: 30px; }
+.swatches.small .sw.custom::after { font-size: 16px; }
+
+/* ── Compact gallery ──────────────────────────────────────────────── */
+.anim-gallery { grid-template-columns: repeat(4, 1fr); max-height: 150px; }
+
+/* ── Selected effect tile ─────────────────────────────────────────── */
+.anim-card.selected { border-color: rgba(139, 92, 246, .6); box-shadow: 0 0 22px rgba(109, 40, 217, .28); }
+
+/* ── Decorative particle background ───────────────────────────────── */
+.bg-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+
+/* Final fit */
+.layout { padding-bottom: 16px; }
+.anim-gallery { max-height: 132px; }
+.accordion .acc-content > .card { margin-bottom: 0; }
+
+/* All effects visible – no scrollbar */
+.anim-gallery { max-height: none; overflow: visible; grid-template-columns: repeat(4, 1fr); }
+
+/* Make the particle layer actually visible between the cards */
+.bg-canvas { z-index: 0; }
+.topbar { position: sticky; }
+.layout { position: relative; z-index: 1; }
+
+/* Particle rain above the cards (decorative, click-through) */
+.bg-canvas { z-index: 3; opacity: .9; }
+
+/* Particles behind the UI; cards slightly translucent so the rain shows through */
+.bg-canvas { z-index: 0; opacity: 1; }
+.card { background: linear-gradient(160deg, rgba(255,255,255,.04), rgba(255,255,255,0) 45%), rgba(20,20,28,.82); }
+.live-card { background: linear-gradient(160deg, rgba(139,92,246,.16), rgba(20,20,32,.5) 55%), rgba(18,18,28,.74); }
+.metrics-card { background: linear-gradient(160deg, rgba(34,211,238,.10), rgba(20,20,32,.5) 60%), rgba(18,18,28,.74); }
+.accordion { background: rgba(18,18,26,.55); }
+.accordion .acc-content > .card { background: rgba(14,14,20,.55); }
+.stop-all { grid-column: 1 / -1; }
+
+/* Bars inside the settings panel must stay within the panel width */
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar > div:first-child { flex: 1 1 100%; }
+.bar .bar-stream, .bar .bar-model { flex: 1 1 150px; min-width: 0; max-width: 100%; }
+.bar .bar-status { flex: 0 0 auto; min-width: 0; }
+.bar .bar-actions { margin-left: auto; flex: 0 0 auto; }
+.bar select { min-width: 0; }
+
+/* Screen buddy (leaning cat) on the topbar/content divider */
+.brand { position: relative; }
+.buddy {
+  position: absolute; left: 100%; bottom: 0; margin-left: 10px;
+  transform: translateY(calc(52% + 5px));
+  height: 74px; width: auto;
+  pointer-events: none; z-index: 6;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
+}
+
+/* Centre the "+" on the custom colour circle */
+.sw.custom::after {
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; padding-bottom: 1px;
+}
+
+/* ── Settings menu: compact, list-like, grouped ───────────────────── */
+.settings { width: 520px; }
+.settings-body { padding: 4px 0 24px; }
+.settings-body .card {
+  background: transparent; border: 0; border-radius: 0;
+  border-top: 1px solid var(--border);
+  padding: 13px 20px 15px; box-shadow: none;
+}
+.settings-body .card:first-child { border-top: 0; }
+.settings-body .card-head { margin-bottom: 4px; }
+.settings-body .card-head h2 {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--muted); font-weight: 750;
+}
+.settings-body .lead { font-size: 12px; margin: 0 0 8px; color: var(--muted); }
+
+/* Every setting becomes a label-left / control-right list row */
+.settings-body .grid,
+.settings-body .grid.four {
+  display: flex; flex-direction: column; gap: 0; margin-bottom: 0;
+}
+.settings-body .field {
+  flex-direction: row; align-items: center; flex-wrap: nowrap;
+  gap: 12px; min-height: 30px; padding: 3px 0;
+  font-size: 13px; color: var(--fg);
+}
+.settings-body .field > span:first-child { flex: 0 0 138px; }
+.settings-body .field .hint { flex: 0 0 auto; }
+.settings-body .field output { flex: 0 0 38px; text-align: right; color: var(--muted); }
+.settings-body .field input[type="range"] { flex: 1 1 auto; }
+.settings-body .field select,
+.settings-body .field input[type="number"],
+.settings-body .field input[type="text"] {
+  width: auto; flex: 0 1 auto; max-width: 240px; margin-left: auto;
+  padding: 6px 9px; font-size: 13px; border-radius: 8px;
+}
+.settings-body .field.grow { grid-column: auto; }
+.settings-body .color-field { max-width: none; }
+
+/* Smaller controls all over the panel */
+.settings-body .btn { padding: 6px 11px; font-size: 13px; border-radius: 8px; }
+.settings-body .actions { margin-top: 10px; gap: 8px; }
+.settings-body .switch { padding: 5px 0; font-size: 13px; gap: 10px; }
+.settings-body .switch .track { width: 36px; height: 21px; }
+.settings-body .switch .track::after { width: 15px; height: 15px; top: 2px; left: 2px; }
+.settings-body .switch input:checked + .track::after { transform: translateX(15px); }
+.settings-body input[type="color"] { width: 34px; height: 30px; }
+.settings-body .row { gap: 8px; }
+
+/* Compact devices / models / profiles lists */
+.settings-body .device-row,
+.settings-body .preset-row { padding: 8px 11px; font-size: 12.5px; gap: 10px; }
+.settings-body .device-list,
+.settings-body .preset-list { gap: 6px; margin-top: 10px; }
+
+/* Compact bar rows inside the panel */
+.settings-body .bar { padding: 9px 11px; gap: 8px; }
+.settings-body .bar .bar-title { font-size: 13px; }
+.settings-body .bar .bar-stream, .settings-body .bar .bar-model { flex: 1 1 140px; }
+.settings-body .bar select { padding: 6px 8px; font-size: 12.5px; }
+
+/* Inline "new bar model" form (revealed by Add model) */
+.settings-body .model-form {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .02);
+}
+.settings-body .model-form .actions { margin-top: 12px; }
+
+/* Custom-colour swatch: draw a perfectly centred "+" on ::before and disable the
+   ::after, which is otherwise claimed by the [data-tip] tooltip and slides it. */
+.sw.custom::after { content: none; }
+.sw.custom::before {
+  content: "";
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background:
+    linear-gradient(#fff, #fff) center / 3px 46% no-repeat,
+    linear-gradient(#fff, #fff) center / 46% 3px no-repeat,
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, .32), rgba(0, 0, 0, .32));
+}
+.swatches.small .sw.custom::before {
+  background:
+    linear-gradient(#fff, #fff) center / 2px 44% no-repeat,
+    linear-gradient(#fff, #fff) center / 44% 2px no-repeat,
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, .32), rgba(0, 0, 0, .32));
+}
+
+/* New-model form: collapsible identification/protocol block */
+.settings-body .model-adv { margin-top: 10px; }
+.settings-body .model-adv > summary {
+  cursor: pointer; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); font-weight: 700;
+  padding: 4px 0; list-style: none;
+}
+.settings-body .model-adv > summary::-webkit-details-marker { display: none; }
+.settings-body .model-adv > summary::before { content: "▸ "; }
+.settings-body .model-adv[open] > summary::before { content: "▾ "; }
+.settings-body .model-adv .grid { margin-top: 6px; }
+
+/* Settings lists a touch denser still */
+.settings-body .device-row,
+.settings-body .preset-row { padding: 6px 10px; font-size: 12px; }
+
+/* Denser bars & devices inside the settings panel */
+.settings-body .bar { padding: 6px 8px; gap: 6px; border-radius: 8px; }
+.settings-body .bar .bar-title { font-size: 12.5px; }
+.settings-body .bar-sub { font-size: 10.5px; }
+.settings-body .bar .mini-check { font-size: 11.5px; }
+.settings-body .bar select { padding: 4px 6px; font-size: 12px; border-radius: 7px; }
+.settings-body .bar .bar-status { font-size: 12px; }
+.settings-body .bar .btn { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
+.settings-body .bar .icon-btn { width: 26px; height: 26px; }
+.settings-body .device-row { padding: 5px 9px; font-size: 11.5px; gap: 8px; }
+.settings-body .preset-row { padding: 5px 9px; }
+.settings-body .card { padding: 11px 18px 12px; }
+
+/* ── Top bar: profile, language and status look identical ─────────── */
+.topbar-actions .pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 14px; max-width: 260px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); font-size: 13px; color: var(--fg);
+}
+.topbar-actions .pill::before {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 8px var(--glow); flex: none;
+}
+.topbar-actions .status-pill::before { display: none; }
+.topbar-actions .profile-chip { color: var(--muted); }
+.topbar-actions .lang-pill { padding-right: 10px; }
+.topbar-actions .lang-select {
+  appearance: none; -webkit-appearance: none;
+  background-color: transparent; border: 0; color: var(--fg);
+  font-size: 13px; padding: 0 18px 0 0; cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' fill='none' stroke='%23b8b8c8' stroke-width='1.5'/></svg>");
+  background-repeat: no-repeat; background-position: right center;
+}
+
+/* ── Tidy profiles + automation in settings ───────────────────────── */
+.settings-body #card-profiles .row { gap: 6px; }
+.settings-body #card-profiles .btn,
+.settings-body .preset-row .btn { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+.settings-body .preset-row { gap: 8px; }
+.settings-body .preset-row .preset-name { font-size: 13px; }
+.settings-body .profile-current { margin-bottom: 8px; }

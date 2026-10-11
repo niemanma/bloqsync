@@ -23,6 +23,8 @@ fn main() {
             commands::stop_bar,
             commands::stop_all,
             commands::status,
+            commands::live_state,
+            commands::stop_everything,
             commands::set_brightness,
             commands::set_all_color,
             commands::resume_sync,
@@ -48,6 +50,7 @@ fn main() {
             commands::animation_stop
         ])
         .setup(|app| {
+            bloqsync::device::set_match_rules(bar_models::device_match_rules());
             runtime::seed_ident_cache(app.handle());
             runtime::spawn_autostart(app.handle().clone());
             runtime::spawn_hotplug(app.handle().clone());

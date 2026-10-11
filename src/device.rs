@@ -4,16 +4,58 @@
 //! uses *unnumbered* 64-byte HID reports: a command is written as exactly 64
 //! bytes, no leading report-id byte. This is also the fastest path.
 
-use crate::protocol::{self, Rgb, Seq};
+use crate::protocol::{self, ProtocolSpec, Rgb, Seq};
 use anyhow::{bail, Context, Result};
 use std::ffi::CString;
 use std::fs;
 use std::os::unix::io::RawFd;
+use std::sync::OnceLock;
 
 pub const VENDOR_ID: u16 = 0x1A86; // QinHeng / WCH
 pub const PRODUCT_ID: u16 = 0xFE07; // ROBOBLOQ "LIGHT"
 
-const VENDOR_USAGE_PAGE: [u8; 3] = [0x06, 0x00, 0xFF];
+/// How to recognise one kind of bar on the USB bus, plus the protocol used to
+/// speak to it. The GUI fills this from the bar-model files (see
+/// `gui/src/bar_models.rs`); the CLI falls back to the built-in default.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeviceMatch {
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub usage_page: u16,
+    pub protocol: ProtocolSpec,
+}
+
+impl Default for DeviceMatch {
+    fn default() -> Self {
+        DeviceMatch {
+            vendor_id: VENDOR_ID,
+            product_id: PRODUCT_ID,
+            usage_page: 0xFF00,
+            protocol: ProtocolSpec::default(),
+        }
+    }
+}
+
+impl DeviceMatch {
+    /// First three report-descriptor bytes for a usage page (`06 00 FF` = 0xFF00).
+    fn usage_prefix(&self) -> [u8; 3] {
+        [0x06, (self.usage_page & 0xFF) as u8, (self.usage_page >> 8) as u8]
+    }
+}
+
+static MATCH_RULES: OnceLock<Vec<DeviceMatch>> = OnceLock::new();
+
+/// Install the identification rules (typically derived from the bar models).
+/// Set once at start-up; later calls are ignored.
+pub fn set_match_rules(rules: Vec<DeviceMatch>) {
+    if !rules.is_empty() {
+        let _ = MATCH_RULES.set(rules);
+    }
+}
+
+fn match_rules() -> &'static [DeviceMatch] {
+    MATCH_RULES.get_or_init(|| vec![DeviceMatch::default()])
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceInfo {
@@ -25,6 +67,8 @@ pub struct DeviceInfo {
     pub serial: String,
     /// Vendor control interface (0) vs. keyboard interface (1).
     pub interface: u8,
+    /// Protocol used to drive this bar (from its model).
+    pub protocol: ProtocolSpec,
 }
 
 /// Enumerate all connected SyncLight control interfaces.
@@ -40,15 +84,17 @@ pub fn enumerate() -> Vec<DeviceInfo> {
         let uevent = fs::read_to_string(format!("{base}/device/uevent")).unwrap_or_default();
         let (hid_id, hid_name, hid_uniq) = parse_uevent(&uevent);
         // HID_ID = 0003:00001A86:0000FE07  (bus:vendor:product as hex)
-        if parse_hid_id(&hid_id) != Some((VENDOR_ID, PRODUCT_ID)) {
-            continue;
-        }
-
-        // Only the vendor interface (usage page 0xFF00) accepts colour commands.
+        let ids = parse_hid_id(&hid_id);
         let desc = fs::read(format!("{base}/device/report_descriptor")).unwrap_or_default();
-        if desc.len() < 3 || desc[..3] != VENDOR_USAGE_PAGE {
-            continue;
-        }
+        // A device is ours when *any* model's identification rule matches:
+        // the (vendor, product) pair and the vendor usage page.
+        let rule = match_rules().iter().find(|rule| {
+            ids == Some((rule.vendor_id, rule.product_id))
+                && desc.len() >= 3
+                && desc[..3] == rule.usage_prefix()
+        });
+        let Some(rule) = rule else { continue };
+        let protocol = rule.protocol.clone();
 
         // Stable id + interface number from the usb topology.
         // e.g. /sys/devices/.../usb1/1-2/1-2:1.0/0003:1A86:FE07.0014
@@ -67,6 +113,7 @@ pub fn enumerate() -> Vec<DeviceInfo> {
             name: hid_name,
             serial: hid_uniq,
             interface,
+            protocol,
         });
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -98,6 +145,7 @@ pub struct Device {
     pub info: DeviceInfo,
     fd: RawFd,
     seq: Seq,
+    protocol: ProtocolSpec,
     pub led_count: usize,
     pub firmware: String,
     pub uuid: String,
@@ -120,6 +168,7 @@ impl Device {
             info: info.clone(),
             fd,
             seq: Seq::new(),
+            protocol: info.protocol.clone(),
             led_count: 0,
             firmware: String::new(),
             uuid: String::new(),
@@ -142,7 +191,7 @@ impl Device {
 
     /// Query firmware version, LED count, UUID, board id.
     pub fn identify(&mut self) -> Result<()> {
-        let frame = protocol::read_device_info(self.seq.next());
+        let frame = protocol::read_device_info(self.seq.next(), &self.protocol);
         self.write_raw(&frame)?;
         let r = self.read_response(500).context("device info response")?;
         if r.len() < 24 || &r[0..2] != b"RB" {
@@ -159,16 +208,17 @@ impl Device {
         Ok(())
     }
 
-    /// Write one command frame. Must be <= one 64-byte report.
+    /// Write one command frame. Must be <= one report.
     pub fn write_raw(&self, frame: &[u8]) -> Result<()> {
-        if frame.len() > protocol::REPORT_SIZE {
+        let report = self.protocol.report_size;
+        if frame.len() > report {
             bail!(
                 "frame of {} bytes exceeds the single-report limit of {}",
                 frame.len(),
-                protocol::REPORT_SIZE
+                report
             );
         }
-        let mut buf = [0u8; protocol::REPORT_SIZE];
+        let mut buf = vec![0u8; report];
         buf[..frame.len()].copy_from_slice(frame);
         let n = unsafe { libc::write(self.fd, buf.as_ptr() as *const libc::c_void, buf.len()) };
         if n < 0 {
@@ -187,7 +237,7 @@ impl Device {
         if r <= 0 {
             bail!("no response within {timeout_ms} ms");
         }
-        let mut buf = [0u8; protocol::REPORT_SIZE];
+        let mut buf = vec![0u8; self.protocol.report_size];
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
         if n < 0 {
             bail!("hidraw read: {}", std::io::Error::last_os_error());
@@ -198,7 +248,7 @@ impl Device {
     /// Stream a full-strip colour buffer via `setSyncScreen`. Frames are sent
     /// back-to-back, each within the single-report limit.
     pub fn send_colors(&self, colors: &[Rgb]) -> Result<()> {
-        for frame in protocol::sc_frames(&self.seq, colors, self.led_count, 0) {
+        for frame in protocol::sc_frames(&self.seq, colors, self.led_count, 0, &self.protocol) {
             self.write_raw(&frame)?;
         }
         Ok(())
@@ -208,7 +258,7 @@ impl Device {
     /// the same update. `tol` merges adjacent LEDs whose colour is within
     /// `tol` per channel (fewer frames -> less tearing).
     pub fn send_colors_paced(&self, colors: &[Rgb], gap: std::time::Duration, tol: u8) -> Result<()> {
-        let frames = protocol::sc_frames(&self.seq, colors, self.led_count, tol);
+        let frames = protocol::sc_frames(&self.seq, colors, self.led_count, tol, &self.protocol);
         self.write_frames_paced(&frames, gap)
     }
 
@@ -221,9 +271,9 @@ impl Device {
         max_frames: usize,
     ) -> Result<()> {
         let frames = if max_frames == 0 {
-            protocol::sc_frames(&self.seq, colors, self.led_count, 0)
+            protocol::sc_frames(&self.seq, colors, self.led_count, 0, &self.protocol)
         } else {
-            protocol::sc_frames_fit(&self.seq, colors, self.led_count, max_frames)
+            protocol::sc_frames_fit(&self.seq, colors, self.led_count, max_frames, &self.protocol)
         };
         self.write_frames_paced(&frames, gap)
     }
@@ -241,11 +291,11 @@ impl Device {
 
     /// Set one persistent single colour (survives when no stream runs).
     pub fn set_persistent_color(&self, color: Rgb) -> Result<()> {
-        self.write_raw(&protocol::persistent_color(self.seq.next(), color))
+        self.write_raw(&protocol::persistent_color(self.seq.next(), color, &self.protocol))
     }
 
     pub fn set_brightness(&self, value: u8) -> Result<()> {
-        self.write_raw(&protocol::set_brightness(self.seq.next(), value))
+        self.write_raw(&protocol::set_brightness(self.seq.next(), value, &self.protocol))
     }
 
     pub fn turn_off(&self) -> Result<()> {

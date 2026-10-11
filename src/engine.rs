@@ -100,7 +100,12 @@ fn changed(prev: &[Rgb], next: &[Rgb], threshold: u8) -> bool {
 }
 
 /// Start syncing one monitor (`slot`) to one bar (`device`).
-pub fn spawn(device: Arc<Device>, slot: FrameSlot, cfg: SyncConfig) -> Result<SyncHandle> {
+pub fn spawn(
+    device: Arc<Device>,
+    slot: FrameSlot,
+    cfg: SyncConfig,
+    preview: Arc<Mutex<Vec<Rgb>>>,
+) -> Result<SyncHandle> {
     let running = Arc::new(AtomicBool::new(true));
     let sent = Arc::new(AtomicU64::new(0));
     let running_thread = running.clone();
@@ -144,6 +149,10 @@ pub fn spawn(device: Arc<Device>, slot: FrameSlot, cfg: SyncConfig) -> Result<Sy
                             cfg.filter_strength,
                             &last_sent,
                         );
+                        if let Ok(mut p) = preview.lock() {
+                            p.clear();
+                            p.extend_from_slice(&disp);
+                        }
                         if changed(&last_sent, &disp, cfg.change_threshold) {
                             match device.send_colors_fit(&disp, cfg.inter_frame_gap, cfg.max_frames)
                             {

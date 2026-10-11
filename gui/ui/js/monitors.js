@@ -27,7 +27,7 @@ export function renderMonmap(container, streams) {
   const maxY = Math.max(...streams.map((s) => s.position[1] + s.size[1]));
   const width = maxX - minX || 1;
   const height = maxY - minY || 1;
-  const scale = Math.min(560 / width, 220 / height);
+  const scale = Math.min(420 / width, 150 / height);
 
   container.style.width = `${Math.round(width * scale)}px`;
   container.style.height = `${Math.round(height * scale)}px`;

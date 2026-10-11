@@ -23,6 +23,8 @@ let boardCanvas = null;   // offscreen Hue × Saturation gradient
 let editPoints = [];      // working copy of the pattern
 let selected = 0;
 let dragging = -1;
+let selectedId = null;
+let editName = "";   // name of the pattern currently open in the editor
 
 const round1 = (v) => Math.round(v * 10) / 10;
 
@@ -30,6 +32,26 @@ const round1 = (v) => Math.round(v * 10) / 10;
 
 function isUserAnim(id) {
   return (state.config?.animations || []).some((a) => a.id === id);
+}
+
+/** True when every point shares one hue+saturation, i.e. the pattern has a
+ *  single adjustable base colour (Static, Breathe, Chase, …). */
+export function isMonochromeAnim(a) {
+  const pts = a?.points || [];
+  if (!pts.length) return false;
+  const { hue, sat } = pts[0];
+  return pts.every((p) => Math.abs(p.hue - hue) < 1e-6 && Math.abs(p.sat - sat) < 1e-6);
+}
+
+/** Recolour the selected monochrome animation and play it. Returns false when
+ *  the selected pattern is not a single-colour one (caller falls back). */
+export async function recolorSelected(r, g, b) {
+  const a = selectedId ? animationById(selectedId) : null;
+  if (!a || a.id === "static" || !isMonochromeAnim(a)) return false;
+  const { h, s } = rgbToHs([r, g, b]);
+  const copy = { ...a, points: a.points.map((p) => ({ ...p, hue: h, sat: s })) };
+  await playAnimation(copy);
+  return true;
 }
 
 function slug(name) {
@@ -180,7 +202,8 @@ function checkDurations() {
 
 function fillForm(anim) {
   const a = normalizeAnim(anim);
-  $("#anim-name").value = a.name || "";
+  editName = a.name || "";
+  fillNameSelect(a.id && animationById(a.id) ? a.id : null);
   $("#anim-movement").value = MOVEMENT_IDS.includes(a.movement) ? a.movement : "rotate_right";
   $("#anim-speed").value = Math.round(a.speed * 100);
   $("#anim-cycles").value = a.cycles;
@@ -200,7 +223,7 @@ function fillForm(anim) {
 function readForm() {
   return {
     id: state.animEditId || "",
-    name: $("#anim-name").value.trim(),
+    name: editName.trim(),
     movement: $("#anim-movement").value,
     speed: (+$("#anim-speed").value || 0) / 100,
     cycles: Math.max(0.1, +$("#anim-cycles").value || 1),
@@ -232,6 +255,54 @@ function renderMovementOptions() {
   select.value = MOVEMENT_IDS.includes(current) ? current : "rotate_right";
 }
 
+function animDisplayName(a) {
+  const key = "anim.preset." + a.id;
+  const tr = t(key);
+  return tr === key ? a.name : tr;
+}
+
+/** Fill the Name dropdown: a "new" entry plus every existing animation. */
+function renderAnimNameOptions() {
+  const sel = $("#anim-name");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = "";
+  sel.appendChild(new Option(t("anim.newOption"), "__new__"));
+  state.animations.forEach((a) => sel.appendChild(new Option(animDisplayName(a), a.id)));
+  if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
+}
+
+/** Point the Name dropdown at `id`, or at a temporary entry for a new draft. */
+function fillNameSelect(id) {
+  const sel = $("#anim-name");
+  if (!sel) return;
+  renderAnimNameOptions();
+  if (id && [...sel.options].some((o) => o.value === id)) {
+    sel.value = id;
+    return;
+  }
+  let opt = sel.querySelector('option[value="__draft__"]');
+  if (!opt) {
+    opt = new Option(editName || t("anim.unnamed"), "__draft__");
+    sel.insertBefore(opt, sel.options[1] || null);
+  } else {
+    opt.textContent = editName || t("anim.unnamed");
+  }
+  sel.value = "__draft__";
+}
+
+function startNewAnimation() {
+  const answer = window.prompt(t("anim.namePrompt"), "");
+  if (answer === null) { fillNameSelect(state.animEditId); return; }
+  const name = answer.trim();
+  state.animEditId = null;
+  fillForm({
+    id: "", name, movement: "rotate_right", speed: 0.25, cycles: 1,
+    brightness: 0.9, fps: 30, points: [normalizePoint(DEFAULT_POINT)],
+  });
+  $("#anim-movement")?.focus();
+}
+
 export function renderAnimations() {
   const box = $("#anim-gallery");
   if (!box) return;
@@ -239,11 +310,18 @@ export function renderAnimations() {
     box.innerHTML = `<p class="preset-empty">${t("anim.empty")}</p>`;
     return;
   }
-  box.innerHTML = state.animations.map((a) => {
+  const list = state.animations
+    .slice()
+    .sort((a, b) => (a.id === "static" ? -1 : 0) - (b.id === "static" ? -1 : 0));
+  box.innerHTML = list.map((a) => {
     const user = isUserAnim(a.id);
-    return `<div class="anim-card">
+    const sel = a.id === selectedId ? " selected" : "";
+    const key = "anim.preset." + a.id;
+    const tr = t(key);
+    const name = tr === key ? a.name : tr;
+    return `<div class="anim-card${sel}" data-id="${escapeHtml(a.id)}">
       <div class="anim-card-text">
-        <span class="anim-name">${escapeHtml(a.name)}</span>
+        <span class="anim-name">${escapeHtml(name)}</span>
         <span class="anim-kind-label">${escapeHtml(movementLabel(a.movement))}</span>
       </div>
       <div class="anim-card-actions">
@@ -254,8 +332,18 @@ export function renderAnimations() {
     </div>`;
   }).join("");
 
+  const select = (id) => {
+    selectedId = id;
+    box.querySelectorAll(".anim-card").forEach((c) =>
+      c.classList.toggle("selected", c.dataset.id === id));
+    const anim = id ? animationById(id) : null;
+    $("#static-colors")?.classList.toggle("hidden", !isMonochromeAnim(anim));
+  };
+  box.querySelectorAll(".anim-card").forEach((card) =>
+    card.addEventListener("click", () => select(card.dataset.id)));
+
   box.querySelectorAll(".anim-run").forEach((b) =>
-    b.addEventListener("click", () => playAnimation(animationById(b.dataset.id))));
+    b.addEventListener("click", () => { select(b.dataset.id); playAnimation(animationById(b.dataset.id)); }));
   box.querySelectorAll(".anim-edit").forEach((b) =>
     b.addEventListener("click", () => fillForm(animationById(b.dataset.id))));
   box.querySelectorAll(".anim-del").forEach((b) =>
@@ -264,6 +352,8 @@ export function renderAnimations() {
       await reloadConfigRaw();
       renderAnimations();
     }));
+
+  fillNameSelect(state.animEditId);
 }
 
 // ── actions ─────────────────────────────────────────────────────────
@@ -285,8 +375,11 @@ async function playAnimation(anim) {
 async function saveFromForm() {
   const anim = readForm();
   if (!anim.name) {
-    $("#anim-name").focus();
-    return;
+    const answer = window.prompt(t("anim.namePrompt"), "");
+    if (answer === null || !answer.trim()) return;
+    editName = answer.trim();
+    anim.name = editName;
+    fillNameSelect(null);
   }
   if (!checkDurations()) return;
   if (!anim.id) anim.id = `user-${slug(anim.name)}-${Date.now().toString(36)}`;
@@ -382,7 +475,8 @@ function initPointsTable() {
 }
 
 export function initAnimations() {
-  preview = new Preview($("#anim-preview"), 54);
+  const previewHost = $("#anim-preview");
+  preview = previewHost ? new Preview(previewHost, 54) : null;
   renderMovementOptions();
   bindSlider("anim-speed", "anim-speed-out", (v) => (v / 100).toFixed(2));
   bindSlider("anim-brightness", "anim-brightness-out", (v) => (v / 100).toFixed(2));
@@ -402,21 +496,41 @@ export function initAnimations() {
   $("#anim-apply")?.addEventListener("click", () => checkDurations());
   $("#anim-add-point")?.addEventListener("click", () => addPoint());
   $("#anim-play")?.addEventListener("click", () => {
-    if (!checkDurations()) return;
-    playAnimation(readForm());
+    if (selectedId === "static") {
+      const [r, g, b] = hexToRgb($("#custom-color")?.value || "#ff8800");
+      invoke("set_all_color", { r, g, b }).catch(() => {});
+      return;
+    }
+    const anim = animationById(selectedId) || state.animations[0];
+    if (anim) playAnimation(anim);
   });
   $("#anim-stop")?.addEventListener("click", () => invoke("animation_stop").catch(() => {}));
   $("#anim-save")?.addEventListener("click", () => saveFromForm());
-  $("#anim-new")?.addEventListener("click", () => {
-    fillForm({ ...normalizeAnim({}), name: "", points: [normalizePoint(DEFAULT_POINT)] });
+  $("#anim-name")?.addEventListener("change", () => {
+    const v = $("#anim-name").value;
+    if (v === "__new__") { startNewAnimation(); return; }
+    if (v === "__draft__") return;
+    const a = animationById(v);
+    if (a) fillForm(a);
   });
+  $("#anim-new")?.addEventListener("click", () => startNewAnimation());
+
+  const openEditor = (on) => {
+    $("#anim-editor")?.classList.toggle("open", on);
+    $("#anim-editor-backdrop")?.classList.toggle("open", on);
+    $("#anim-editor")?.setAttribute("aria-hidden", String(!on));
+    if (on) { redrawBoard(); updatePreview(); }
+  };
+  $("#open-anim-editor")?.addEventListener("click", () => openEditor(true));
+  $("#anim-editor-close")?.addEventListener("click", () => openEditor(false));
+  $("#anim-editor-backdrop")?.addEventListener("click", () => openEditor(false));
 
   editPoints = [normalizePoint(DEFAULT_POINT)];
   selected = 0;
   renderPointTable();
   redrawBoard();
   updatePreview();
-  preview.start();
+  preview?.start();
 }
 
 /** Load an animation into the editor (used after the list has loaded). */

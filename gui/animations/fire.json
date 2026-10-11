@@ -1,0 +1,46 @@
+{
+  "id": "fire",
+  "name": "Fire",
+  "movement": "stationary",
+  "speed": 0.25,
+  "cycles": 4,
+  "brightness": 0.9,
+  "points": [
+    {
+      "hue": 0.02,
+      "sat": 1.0,
+      "brightness": 0.6,
+      "duration": 17
+    },
+    {
+      "hue": 0.06,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 17
+    },
+    {
+      "hue": 0.03,
+      "sat": 1.0,
+      "brightness": 0.5,
+      "duration": 17
+    },
+    {
+      "hue": 0.08,
+      "sat": 0.95,
+      "brightness": 0.9,
+      "duration": 17
+    },
+    {
+      "hue": 0.04,
+      "sat": 1.0,
+      "brightness": 0.7,
+      "duration": 16
+    },
+    {
+      "hue": 0.09,
+      "sat": 1.0,
+      "brightness": 0.4,
+      "duration": 16
+    }
+  ]
+}

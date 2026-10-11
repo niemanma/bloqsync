@@ -1,0 +1,22 @@
+{
+  "id": "breathe",
+  "name": "Breathe",
+  "movement": "stationary",
+  "speed": 0.25,
+  "cycles": 7,
+  "brightness": 0.9,
+  "points": [
+    {
+      "hue": 0.08,
+      "sat": 0.85,
+      "brightness": 1.0,
+      "duration": 50
+    },
+    {
+      "hue": 0.08,
+      "sat": 0.85,
+      "brightness": 0.12,
+      "duration": 50
+    }
+  ]
+}

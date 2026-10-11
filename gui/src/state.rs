@@ -8,6 +8,9 @@ use bloqsync::engine::SyncHandle;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Live LED colours per bar (key = uuid/id) so the UI can mirror the strips.
+pub(crate) type LiveMap = Arc<Mutex<HashMap<String, Arc<Mutex<Vec<[u8; 3]>>>>>>;
+
 pub(crate) struct BarRuntime {
     pub(crate) device: Arc<Device>,
     pub(crate) sync: SyncHandle,
@@ -66,4 +69,6 @@ pub(crate) struct AppState {
     pub(crate) cinema: Mutex<Option<CinemaRuntime>>,
     pub(crate) animation: Mutex<Option<AnimationRuntime>>,
     pub(crate) identify: Mutex<Option<IdentifyRuntime>>,
+    /// Latest LED colours per bar for the live UI mirror.
+    pub(crate) live: LiveMap,
 }

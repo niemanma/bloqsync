@@ -1,0 +1,58 @@
+{
+  "id": "candle",
+  "name": "Candle Flicker",
+  "movement": "stationary",
+  "speed": 0.25,
+  "cycles": 5,
+  "brightness": 0.85,
+  "points": [
+    {
+      "hue": 0.08,
+      "sat": 1.0,
+      "brightness": 0.85,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.06,
+      "sat": 0.9,
+      "brightness": 1.0,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.09,
+      "sat": 1.0,
+      "brightness": 0.55,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.07,
+      "sat": 0.85,
+      "brightness": 0.95,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.05,
+      "sat": 1.0,
+      "brightness": 0.7,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.09,
+      "sat": 0.95,
+      "brightness": 0.9,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.07,
+      "sat": 1.0,
+      "brightness": 0.45,
+      "duration": 12.5
+    },
+    {
+      "hue": 0.08,
+      "sat": 0.9,
+      "brightness": 0.8,
+      "duration": 12.5
+    }
+  ]
+}

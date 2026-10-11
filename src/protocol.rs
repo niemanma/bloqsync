@@ -34,6 +34,45 @@ pub const ACT_SET_SECTION_LED: u8 = 0x86;
 pub const ACT_SET_BRIGHTNESS: u8 = 0x87;
 pub const ACT_TURN_OFF_LIGHT: u8 = 0x97;
 
+/// Everything needed to frame and address one kind of bar. The bar-model files
+/// (see `gui/src/bar_models.rs`) fill this in; the defaults reproduce the
+/// ROBOBLOQ SyncLight protocol. Threading it through means a model's JSON truly
+/// drives how the bar is spoken to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProtocolSpec {
+    /// HID report size (one write is exactly this many bytes).
+    pub report_size: usize,
+    /// Maximum colour sections per 64-byte-safe SC report.
+    pub max_sections_per_frame: usize,
+    /// Bytes per wire section (`start, R, G, B, end`).
+    pub section_size: usize,
+    /// Highest LED index the device addresses.
+    pub max_leds: usize,
+    /// Pause between the SC frames of one update.
+    pub inter_frame_gap_ms: u64,
+    pub act_sync_screen: u8,
+    pub act_section_led: u8,
+    pub act_brightness: u8,
+    pub act_read_info: u8,
+}
+
+impl Default for ProtocolSpec {
+    fn default() -> Self {
+        ProtocolSpec {
+            report_size: REPORT_SIZE,
+            max_sections_per_frame: MAX_SECTIONS_PER_FRAME,
+            section_size: SECTION_SIZE,
+            max_leds: MAX_LEDS,
+            inter_frame_gap_ms: 3,
+            act_sync_screen: ACT_SET_SYNC_SCREEN,
+            act_section_led: ACT_SET_SECTION_LED,
+            act_brightness: ACT_SET_BRIGHTNESS,
+            act_read_info: ACT_READ_DEVICE_INFO,
+        }
+    }
+}
+
+
 pub type Rgb = [u8; 3];
 pub const BLACK: Rgb = [0, 0, 0];
 
@@ -117,8 +156,8 @@ pub struct Section {
 /// Compress a full-strip colour buffer into the fewest possible sections by
 /// merging runs of identical colour. LEDs beyond `colors.len()` (up to
 /// `led_count`) are blanked.
-pub fn collapse(colors: &[Rgb], led_count: usize) -> Vec<Section> {
-    collapse_tol(colors, led_count, 0)
+pub fn collapse(colors: &[Rgb], led_count: usize, spec: &ProtocolSpec) -> Vec<Section> {
+    collapse_tol(colors, led_count, 0, spec)
 }
 
 #[inline]
@@ -132,8 +171,8 @@ fn within(a: Rgb, b: Rgb, tol: u8) -> bool {
 /// Like [`collapse`] but merges adjacent LEDs whose colour differs by at most
 /// `tol` per channel. Fewer sections => fewer frames per update => less
 /// tearing and a more atomic update. `tol = 0` keeps exact colours.
-pub fn collapse_tol(colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Section> {
-    let n = colors.len().min(MAX_LEDS);
+pub fn collapse_tol(colors: &[Rgb], led_count: usize, tol: u8, spec: &ProtocolSpec) -> Vec<Section> {
+    let n = colors.len().min(spec.max_leds);
     let mut out = Vec::new();
     let mut i = 0;
     while i < n {
@@ -150,7 +189,7 @@ pub fn collapse_tol(colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Section> {
         i = j;
     }
     // Blank any trailing LEDs we did not provide a colour for.
-    if n < led_count && led_count <= MAX_LEDS {
+    if n < led_count && led_count <= spec.max_leds {
         out.push(Section {
             start: (n + 1) as u8,
             end: led_count as u8,
@@ -172,20 +211,26 @@ pub fn sections_payload(sections: &[Section]) -> Vec<u8> {
 }
 
 /// Split sections into 64-byte-safe `setSyncScreen` frames.
-fn encode_screen_frames(seq: &Seq, sections: &[Section]) -> Vec<Vec<u8>> {
+fn encode_screen_frames(seq: &Seq, sections: &[Section], spec: &ProtocolSpec) -> Vec<Vec<u8>> {
     sections
-        .chunks(MAX_SECTIONS_PER_FRAME)
+        .chunks(spec.max_sections_per_frame)
         .map(|chunk| {
             let payload = sections_payload(chunk);
-            sc_frame(seq.next(), ACT_SET_SYNC_SCREEN, &payload)
+            sc_frame(seq.next(), spec.act_sync_screen, &payload)
         })
         .collect()
 }
 
 /// Build all `setSyncScreen` (SC / 0x80) frames needed to display `colors`,
 /// each guaranteed to fit in one 64-byte report.
-pub fn sc_frames(seq: &Seq, colors: &[Rgb], led_count: usize, tol: u8) -> Vec<Vec<u8>> {
-    encode_screen_frames(seq, &collapse_tol(colors, led_count, tol))
+pub fn sc_frames(
+    seq: &Seq,
+    colors: &[Rgb],
+    led_count: usize,
+    tol: u8,
+    spec: &ProtocolSpec,
+) -> Vec<Vec<u8>> {
+    encode_screen_frames(seq, &collapse_tol(colors, led_count, tol, spec), spec)
 }
 
 /// Build `setSyncScreen` frames constrained to at most `max_frames` per update
@@ -197,14 +242,15 @@ pub fn sc_frames_fit(
     colors: &[Rgb],
     led_count: usize,
     max_frames: usize,
+    spec: &ProtocolSpec,
 ) -> Vec<Vec<u8>> {
     let max_frames = max_frames.max(1);
-    let max_sections = max_frames * MAX_SECTIONS_PER_FRAME;
+    let max_sections = max_frames * spec.max_sections_per_frame;
     let mut tol: u16 = 0;
     loop {
-        let sections = collapse_tol(colors, led_count, tol.min(255) as u8);
+        let sections = collapse_tol(colors, led_count, tol.min(255) as u8, spec);
         if sections.len() <= max_sections || tol >= 255 {
-            return encode_screen_frames(seq, &sections);
+            return encode_screen_frames(seq, &sections, spec);
         }
         tol += 2;
     }
@@ -212,20 +258,20 @@ pub fn sc_frames_fit(
 
 /// Persistent single-colour command (`RB` / `0x86`). Works even while no
 /// stream is running; used as the fallback state.
-pub fn persistent_color(seq: u8, color: Rgb) -> Vec<u8> {
-    rb_frame(seq, ACT_SET_SECTION_LED, &[1, color[0], color[1], color[2], 254])
+pub fn persistent_color(seq: u8, color: Rgb, spec: &ProtocolSpec) -> Vec<u8> {
+    rb_frame(seq, spec.act_section_led, &[1, color[0], color[1], color[2], 254])
 }
 
-pub fn set_brightness(seq: u8, value: u8) -> Vec<u8> {
-    rb_frame(seq, ACT_SET_BRIGHTNESS, &[value])
+pub fn set_brightness(seq: u8, value: u8, spec: &ProtocolSpec) -> Vec<u8> {
+    rb_frame(seq, spec.act_brightness, &[value])
 }
 
 pub fn turn_off(seq: u8) -> Vec<u8> {
     rb_frame(seq, ACT_TURN_OFF_LIGHT, &[])
 }
 
-pub fn read_device_info(seq: u8) -> Vec<u8> {
-    rb_frame(seq, ACT_READ_DEVICE_INFO, &[])
+pub fn read_device_info(seq: u8, spec: &ProtocolSpec) -> Vec<u8> {
+    rb_frame(seq, spec.act_read_info, &[])
 }
 
 #[cfg(test)]
@@ -318,7 +364,7 @@ mod tests {
     #[test]
     fn collapse_blanks_trailing_leds() {
         let cols = [[10, 20, 30]; 3];
-        let s = collapse(&cols, 5);
+        let s = collapse(&cols, 5, &ProtocolSpec::default());
         assert_eq!(
             s,
             vec![
@@ -330,14 +376,17 @@ mod tests {
 
     #[test]
     fn collapse_handles_empty_input() {
-        assert_eq!(collapse(&[], 0), vec![]);
-        assert_eq!(collapse(&[], 4), vec![Section { start: 1, end: 4, color: BLACK }]);
+        assert_eq!(collapse(&[], 0, &ProtocolSpec::default()), vec![]);
+        assert_eq!(
+            collapse(&[], 4, &ProtocolSpec::default()),
+            vec![Section { start: 1, end: 4, color: BLACK }]
+        );
     }
 
     #[test]
     fn collapse_merges_identical_runs() {
         let cols = [[1, 1, 1], [1, 1, 1], [9, 9, 9], [1, 1, 1]];
-        let s = collapse(&cols, 4);
+        let s = collapse(&cols, 4, &ProtocolSpec::default());
         let spans: Vec<(u8, u8)> = s.iter().map(|s| (s.start, s.end)).collect();
         assert_eq!(spans, vec![(1, 2), (3, 3), (4, 4)]);
         assert!(s.iter().all(|sec| sec.color != BLACK));
@@ -346,7 +395,7 @@ mod tests {
     #[test]
     fn collapse_truncates_beyond_max_leds() {
         let cols = vec![[1, 2, 3]; MAX_LEDS + 10];
-        let s = collapse(&cols, MAX_LEDS + 10);
+        let s = collapse(&cols, MAX_LEDS + 10, &ProtocolSpec::default());
         assert_eq!(s.first().unwrap().start, 1);
         assert_eq!(s.last().unwrap().end as usize, MAX_LEDS);
     }
@@ -354,13 +403,13 @@ mod tests {
     #[test]
     fn collapse_tol_zero_keeps_exact_colors() {
         let cols = [[100, 100, 100], [110, 100, 100], [200, 200, 200]];
-        assert_eq!(collapse_tol(&cols, 3, 0).len(), 3);
+        assert_eq!(collapse_tol(&cols, 3, 0, &ProtocolSpec::default()).len(), 3);
     }
 
     #[test]
     fn collapse_tol_merges_within_threshold() {
         let cols = [[100, 100, 100], [110, 100, 100], [200, 200, 200]];
-        let s = collapse_tol(&cols, 3, 10);
+        let s = collapse_tol(&cols, 3, 10, &ProtocolSpec::default());
         let spans: Vec<(u8, u8)> = s.iter().map(|s| (s.start, s.end)).collect();
         assert_eq!(spans, vec![(1, 2), (3, 3)]);
         assert_eq!(s[0].color, [100, 100, 100]);
@@ -371,7 +420,7 @@ mod tests {
         // Adjacent diffs are within tolerance but the run anchor is far from
         // the third LED, which must therefore start a new section.
         let cols = [[0, 0, 0], [10, 0, 0], [21, 0, 0]];
-        assert_eq!(collapse_tol(&cols, 3, 10).len(), 2);
+        assert_eq!(collapse_tol(&cols, 3, 10, &ProtocolSpec::default()).len(), 2);
     }
 
     #[test]
@@ -388,7 +437,7 @@ mod tests {
     fn sc_frames_chunk_into_single_reports() {
         let seq = Seq::new();
         let cols: Vec<Rgb> = (0..23).map(|i| [i as u8, 0, 0]).collect();
-        let frames = sc_frames(&seq, &cols, 23, 0);
+        let frames = sc_frames(&seq, &cols, 23, 0, &ProtocolSpec::default());
         assert_eq!(frames.len(), 23usize.div_ceil(MAX_SECTIONS_PER_FRAME));
         for f in &frames {
             assert!(f.len() <= REPORT_SIZE, "frame {} > {}", f.len(), REPORT_SIZE);
@@ -399,36 +448,38 @@ mod tests {
     #[test]
     fn sc_frames_fit_respects_budget() {
         let seq = Seq::new();
+        let sp = ProtocolSpec::default();
         let cols: Vec<Rgb> = (0..54).map(|i| [i as u8, (i * 2) as u8, (i * 3) as u8]).collect();
-        assert!(sc_frames_fit(&seq, &cols, 54, 1).len() <= 1);
-        assert!(sc_frames_fit(&seq, &cols, 54, 5).len() <= 5);
+        assert!(sc_frames_fit(&seq, &cols, 54, 1, &sp).len() <= 1);
+        assert!(sc_frames_fit(&seq, &cols, 54, 5, &sp).len() <= 5);
         // Budget 0 behaves like 1 (never zero frames).
-        assert_eq!(sc_frames_fit(&seq, &cols, 54, 0).len(), 1);
+        assert_eq!(sc_frames_fit(&seq, &cols, 54, 0, &sp).len(), 1);
     }
 
     #[test]
     fn sc_frames_fit_can_always_reach_one_frame() {
         let seq = Seq::new();
         let cols: Vec<Rgb> = (0..MAX_LEDS as u8).map(|i| [i, 255 - i, 128]).collect();
-        assert_eq!(sc_frames_fit(&seq, &cols, MAX_LEDS, 1).len(), 1);
+        assert_eq!(sc_frames_fit(&seq, &cols, MAX_LEDS, 1, &ProtocolSpec::default()).len(), 1);
     }
 
     #[test]
     fn command_helpers_wrap_protocol_frames() {
+        let sp = ProtocolSpec::default();
         assert_eq!(
-            persistent_color(1, [1, 2, 3]),
+            persistent_color(1, [1, 2, 3], &sp),
             rb_frame(1, ACT_SET_SECTION_LED, &[1, 1, 2, 3, 254])
         );
-        assert_eq!(set_brightness(2, 200), rb_frame(2, ACT_SET_BRIGHTNESS, &[200]));
+        assert_eq!(set_brightness(2, 200, &sp), rb_frame(2, ACT_SET_BRIGHTNESS, &[200]));
         assert_eq!(turn_off(3), rb_frame(3, ACT_TURN_OFF_LIGHT, &[]));
-        assert_eq!(read_device_info(4), rb_frame(4, ACT_READ_DEVICE_INFO, &[]));
+        assert_eq!(read_device_info(4, &sp), rb_frame(4, ACT_READ_DEVICE_INFO, &[]));
     }
 
     #[test]
     fn frames_never_exceed_one_report() {
         let seq = Seq::new();
         let colors: Vec<Rgb> = (0..54).map(|i| [i as u8, 0, 255 - i as u8]).collect();
-        for f in sc_frames(&seq, &colors, 54, 0) {
+        for f in sc_frames(&seq, &colors, 54, 0, &ProtocolSpec::default()) {
             assert!(f.len() <= REPORT_SIZE, "frame {} > {}", f.len(), REPORT_SIZE);
         }
     }

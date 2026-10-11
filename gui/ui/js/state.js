@@ -282,21 +282,21 @@ export function applyPreset(preset) {
 }
 
 export function setMode(mode) {
-  state.activeMode = mode;
-  document.querySelectorAll("#mode-tabs .seg").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.mode === mode);
-  });
-  ["screen", "cinema", "color", "anim"].forEach((m) => {
-    $("#panel-" + m)?.classList.toggle("hidden", m !== mode);
-  });
-  localStorage.setItem("bloqsync.mode", mode);
+  // All panels are always visible now; keep the mode for status/labels only.
+  state.activeMode = mode || "screen";
 }
 
+/** Expert mode == the settings panel sliding in from the right. */
 export function setExpert(on) {
   state.expert = on;
   document.body.classList.toggle("expert", on);
   const toggle = $("#expert-toggle");
   if (toggle) toggle.setAttribute("aria-pressed", String(on));
+  const panel = $("#settings");
+  const backdrop = $("#settings-backdrop");
+  panel?.classList.toggle("open", on);
+  backdrop?.classList.toggle("open", on);
+  panel?.setAttribute("aria-hidden", String(!on));
   localStorage.setItem("bloqsync.expert", on ? "1" : "0");
 }
 

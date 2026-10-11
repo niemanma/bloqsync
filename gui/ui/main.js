@@ -14,6 +14,8 @@ import { initSettings, renderDevices } from "./js/settings.js";
 import { initModels, renderModels } from "./js/models.js";
 import { initAnimations, renderAnimations, refreshAnimations, editAnimation } from "./js/anims.js";
 import { initLanguage, t, setLanguage, availableLanguages, getLanguage } from "./js/i18n.js";
+import { initLive, liveTick, renderLiveMode } from "./js/live.js";
+import { initParticles } from "./js/particles.js";
 
 function bindOutputs() {
   bindSlider("fps", "fps-out", (v) => v);
@@ -32,6 +34,17 @@ function renderStatus(st) {
   const running = st.bars.filter((bar) => bar.running).length;
   const dot = $("#status-dot");
   const text = $("#status-text");
+  const mode = st.cinema ? t("app.status.cinema")
+    : st.animation ? t("app.status.animation")
+    : st.paused ? t("app.status.color")
+    : running ? t("app.status.syncing", { n: running })
+    : t("app.status.idle");
+  renderLiveMode(mode);
+  const short = st.cinema ? t("app.status.cinema") : st.animation ? t("app.status.animation")
+    : st.paused ? t("app.status.color") : running ? t("mode.sync") : t("app.status.idle");
+  const mm = $("#metric-mode"); if (mm) mm.textContent = short;
+  const mb = $("#metric-bars"); if (mb) mb.textContent = String(running);
+  const mo = $("#metric-monitors"); if (mo) mo.textContent = String(state.streams.length);
   if (st.cinema) {
     dot.className = "dot on";
     text.textContent = t("app.status.cinema");
@@ -63,7 +76,11 @@ function initLanguageSelect() {
 
 async function statusTick() {
   try {
-    renderStatus(await invoke("status"));
+    const st = await invoke("status");
+    renderStatus(st);
+    const running = st.bars.filter((b) => b.running).length;
+    const sw = $("#sync-enabled");
+    if (sw) sw.checked = !st.paused && !st.cinema && !st.animation && running > 0;
     renderProfileStatus();
     const captures = await invoke("capture_info").catch(() => null);
     if (captures && JSON.stringify(captures) !== JSON.stringify(state.streams)) {
@@ -77,12 +94,13 @@ async function boot() {
   initLanguage();
   initLanguageSelect();
   bindOutputs();
-  $$("#mode-tabs .seg").forEach((btn) =>
-    btn.addEventListener("click", () => setMode(btn.dataset.mode)));
   setExpert(localStorage.getItem("bloqsync.expert") === "1");
-  setMode(localStorage.getItem("bloqsync.mode") || "screen");
 
   initScreen();
+  initLive();
+  initParticles();
+  $("#sync-start")?.addEventListener("click", () => invoke("resume_sync").catch(() => {}));
+  $("#stop-everything")?.addEventListener("click", () => invoke("stop_everything").catch(() => {}));
   initCinema();
   initColor();
   initProfiles();
@@ -130,7 +148,10 @@ async function boot() {
 
   statusTick();
   setInterval(statusTick, 800);
+  setInterval(liveTick, 40);
   window.__bloqsyncReady = true;
+  var be = document.getElementById("boot-error");
+  if (be) be.classList.add("hidden");
 }
 
 boot();

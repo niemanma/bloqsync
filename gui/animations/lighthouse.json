@@ -1,0 +1,14 @@
+{
+  "id": "lighthouse",
+  "name": "Lighthouse",
+  "movement": "rotate_left",
+  "speed": 0.35,
+  "cycles": 3,
+  "brightness": 0.9,
+  "fps": 30,
+  "points": [
+    { "hue": 0.12, "sat": 0.85, "brightness": 1.0, "duration": 30, "swift": true },
+    { "hue": 0.12, "sat": 0.85, "brightness": 0.08, "duration": 55, "swift": false },
+    { "hue": 0.12, "sat": 0.6, "brightness": 0.25, "duration": 15, "swift": true }
+  ]
+}

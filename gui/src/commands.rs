@@ -15,6 +15,30 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{Manager, State};
 
+/// UI-simulation mode (set `BLOQSYNC_SIM=1`): fabricates monitors and bars so
+/// the layout can be exercised without real hardware. Never enabled by default.
+fn sim_enabled() -> bool {
+    std::env::var("BLOQSYNC_SIM").map(|v| v != "0").unwrap_or(false)
+}
+
+/// Two extra bars with 68 and 72 LEDs (for the Live mirror check).
+fn sim_device_specs() -> [(&'static str, usize); 2] {
+    [("sim-68", 68), ("sim-72", 72)]
+}
+
+/// Three side-by-side 1920×1080 monitors.
+fn sim_streams() -> Vec<StreamInfo> {
+    (0..3)
+        .map(|i| StreamInfo {
+            index: i,
+            node_id: 0,
+            position: Some((i as i32 * 1920, 0)),
+            size: Some((1920, 1080)),
+            id: Some(format!("SIM{i}")),
+        })
+        .collect()
+}
+
 #[derive(serde::Serialize)]
 pub(crate) struct DevDto {
     path: String,
@@ -27,7 +51,7 @@ pub(crate) struct DevDto {
 #[tauri::command]
 pub(crate) fn list_devices(state: State<AppState>) -> Vec<DevDto> {
     let mut cache = state.ident_cache.lock().unwrap();
-    let list: Vec<DevDto> = enumerate()
+    let mut list: Vec<DevDto> = enumerate()
         .into_iter()
         .map(|info| match Device::open(&info) {
             Ok(d) => {
@@ -63,6 +87,17 @@ pub(crate) fn list_devices(state: State<AppState>) -> Vec<DevDto> {
         .collect();
     drop(cache);
     runtime::persist_identities(&state);
+    if sim_enabled() {
+        for (id, leds) in sim_device_specs() {
+            list.push(DevDto {
+                path: format!("/dev/hidraw-{id}"),
+                id: id.to_string(),
+                leds,
+                firmware: "SIM".to_string(),
+                uuid: format!("SIM-{id}"),
+            });
+        }
+    }
     list
 }
 
@@ -70,12 +105,18 @@ pub(crate) fn list_devices(state: State<AppState>) -> Vec<DevDto> {
 /// token if present, so after the first selection no dialog is shown.
 #[tauri::command]
 pub(crate) fn open_capture(state: State<AppState>) -> Result<Vec<StreamInfo>, String> {
+    if sim_enabled() {
+        return Ok(sim_streams());
+    }
     runtime::open_capture_inner(&state)
 }
 
 /// Current capture streams without opening anything (UI polling).
 #[tauri::command]
 pub(crate) fn capture_info(state: State<AppState>) -> Vec<StreamInfo> {
+    if sim_enabled() {
+        return sim_streams();
+    }
     state
         .capture
         .lock()
@@ -197,8 +238,53 @@ pub(crate) fn set_all_color(state: State<AppState>, r: u8, g: u8, b: u8) -> Resu
     for info in enumerate() {
         if let Ok(d) = Device::open(&info) {
             let _ = d.set_persistent_color([r, g, b]);
+            let key = if d.uuid.is_empty() { d.info.id.clone() } else { d.uuid.clone() };
+            let slot = runtime::live_slot(&state.live, &key);
+            let mut v = slot.lock().unwrap();
+            v.clear();
+            v.extend(std::iter::repeat([r, g, b]).take(d.led_count));
         }
     }
+    Ok(())
+}
+
+/// Latest LED colours per bar key, for the live UI mirror.
+#[tauri::command]
+pub(crate) fn live_state(state: State<AppState>) -> std::collections::HashMap<String, Vec<[u8; 3]>> {
+    let live = state.live.lock().unwrap();
+    let mut map: std::collections::HashMap<String, Vec<[u8; 3]>> = live
+        .iter()
+        .map(|(k, slot)| (k.clone(), slot.lock().map(|v| v.clone()).unwrap_or_default()))
+        .collect();
+    if sim_enabled() {
+        for (id, leds) in sim_device_specs() {
+            let key = format!("SIM-{id}");
+            if !map.contains_key(&key) {
+                let cols = (0..leds)
+                    .map(|i| {
+                        let x = (i as f32 / leds as f32) * std::f32::consts::TAU;
+                        [
+                            (127.0 + 127.0 * x.sin()) as u8,
+                            (127.0 + 127.0 * (x + 2.0).sin()) as u8,
+                            (127.0 + 127.0 * (x + 4.0).sin()) as u8,
+                        ]
+                    })
+                    .collect();
+                map.insert(key, cols);
+            }
+        }
+    }
+    map
+}
+
+/// Central stop: halt every active mode (screen sync, cinema, animation).
+#[tauri::command]
+pub(crate) fn stop_everything(state: State<AppState>) -> Result<(), String> {
+    runtime::stop_identify_inner(&state);
+    runtime::cinema_stop_inner(&state);
+    runtime::animation_stop_inner(&state);
+    *state.sync_paused.lock().unwrap() = true;
+    runtime::stop_all_inner(&state);
     Ok(())
 }
 

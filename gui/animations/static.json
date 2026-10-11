@@ -1,0 +1,16 @@
+{
+  "id": "static",
+  "name": "Static / Solid",
+  "movement": "stationary",
+  "speed": 0.25,
+  "cycles": 4,
+  "brightness": 0.7,
+  "points": [
+    {
+      "hue": 0.08,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 100
+    }
+  ]
+}

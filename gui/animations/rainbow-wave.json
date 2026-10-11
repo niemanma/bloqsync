@@ -1,0 +1,46 @@
+{
+  "id": "rainbow-wave",
+  "name": "Rainbow Wave",
+  "movement": "rotate_right",
+  "speed": 0.2,
+  "cycles": 1,
+  "brightness": 0.9,
+  "points": [
+    {
+      "hue": 0.0,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 17
+    },
+    {
+      "hue": 0.1667,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 17
+    },
+    {
+      "hue": 0.3333,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 17
+    },
+    {
+      "hue": 0.5,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 17
+    },
+    {
+      "hue": 0.6667,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 16
+    },
+    {
+      "hue": 0.8333,
+      "sat": 1.0,
+      "brightness": 1.0,
+      "duration": 16
+    }
+  ]
+}

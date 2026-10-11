@@ -1,4 +1,4 @@
-// Automation toggles, expert mode, advanced controls, device list and legacy link.
+// Automation toggles, expert mode, advanced controls and the device list.
 
 import { invoke } from "./api.js";
 import { $, escapeHtml } from "./util.js";
@@ -30,6 +30,10 @@ export function renderDevices() {
 
 export function initSettings() {
   $("#expert-toggle")?.addEventListener("click", () => setExpert(!state.expert));
+  $("#settings-close")?.addEventListener("click", () => setExpert(false));
+  $("#settings-backdrop")?.addEventListener("click", () => setExpert(false));
+  $("#start-all-expert")?.addEventListener("click", () => $("#start-all")?.click());
+  $("#stop-all-expert")?.addEventListener("click", () => $("#stop-all")?.click());
 
   $("#autostart")?.addEventListener("change", async (event) => {
     try {
@@ -49,7 +53,5 @@ export function initSettings() {
     invoke("set_brightness", { value: parseInt(event.target.value, 10) }).catch(() => {});
   });
 
-  $("#open-legacy")?.addEventListener("click", () => {
-    window.location.href = "legacy/index.html";
-  });
+
 }

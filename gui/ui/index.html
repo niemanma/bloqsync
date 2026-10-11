@@ -8,222 +8,276 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <canvas id="bg-canvas" class="bg-canvas" aria-hidden="true"></canvas>
   <header class="topbar">
     <div class="brand">
       <img class="brand-mark" src="app-icon.png" alt="" />
       <span class="brand-name">bloqsync</span>
+      <img class="buddy" src="screenbuddy.png" alt="" aria-hidden="true" />
     </div>
     <div class="topbar-actions">
-      <span id="profile-chip" class="profile-chip" data-i18n-title="app.profile.tip"></span>
-      <select id="lang-select" class="lang-select" data-i18n-tip="app.language.tip"></select>
-      <div id="status" class="status-pill">
+      <span id="profile-chip" class="pill profile-chip" data-i18n-title="app.profile.tip"></span>
+      <label class="pill lang-pill" data-i18n-title="app.language.tip">
+        <select id="lang-select" class="lang-select"></select>
+      </label>
+      <div id="status" class="pill status-pill">
         <span id="status-dot" class="dot off"></span>
         <span id="status-text" data-i18n="app.status.loading">Loading …</span>
       </div>
       <button id="expert-toggle" class="icon-btn" type="button" aria-pressed="false"
-              data-i18n-tip="app.expert.tip">⚙</button>
+              data-i18n-tip="app.settings.tip">⚙</button>
     </div>
   </header>
 
   <div class="layout">
-    <nav class="segmented" id="mode-tabs" role="tablist" aria-label="Mode">
-      <button class="seg is-active" data-mode="screen" role="tab" type="button" data-i18n="mode.screen">Screen</button>
-      <button class="seg" data-mode="cinema" role="tab" type="button" data-i18n="mode.cinema">Cinema</button>
-      <button class="seg" data-mode="anim" role="tab" type="button" data-i18n="mode.anim">Effects</button>
-      <button class="seg" data-mode="color" role="tab" type="button" data-i18n="mode.color">Colour</button>
-    </nav>
-
-    <main>
-      <!-- ── Screen ─────────────────────────────────────────────── -->
-      <section id="panel-screen" class="panel">
-        <article class="card">
-          <div class="card-head">
-            <h2 data-i18n="screen.title">Screen sync</h2>
-            <span class="hint" data-i18n-tip="screen.tip">?</span>
-          </div>
-
-          <div id="capture-empty" class="empty">
-            <div class="empty-art" aria-hidden="true"></div>
-            <p class="lead" data-i18n="screen.empty">Connect your monitors to start the lighting.</p>
-            <button id="connect-monitors" class="btn primary" type="button" data-i18n="screen.connect">Connect monitors</button>
-          </div>
-
-          <div id="capture-live" class="hidden">
-            <div id="monmap" class="monmap"></div>
-            <div id="bars" class="bars"></div>
-            <div class="actions">
-              <button id="start-all" class="btn primary" type="button" data-i18n="screen.startAll">Start sync</button>
-              <button id="stop-all" class="btn" type="button" data-i18n="screen.stopAll">Stop</button>
-              <button id="disconnect-monitors" class="btn ghost expert-only" type="button" data-i18n="screen.disconnect">Disconnect</button>
-            </div>
-          </div>
-        </article>
+    <main class="dash">
+      <!-- Live mirror (hero) -->
+      <section class="live-card" id="live-card">
+        <div class="live-head">
+          <span class="live-pulse" aria-hidden="true"></span>
+          <span class="live-title" data-i18n="live.title">Live</span>
+          <span id="live-mode" class="live-mode"></span>
+        </div>
+        <div id="live-strips" class="live-strips"></div>
       </section>
 
-      <!-- ── Cinema ─────────────────────────────────────────────── -->
-      <section id="panel-cinema" class="panel hidden">
-        <article class="card">
-          <div class="card-head">
-            <h2 data-i18n="cinema.title">Cinema mode</h2>
-            <span class="hint" data-i18n-tip="cinema.tip">?</span>
-          </div>
-          <p class="lead" data-i18n="cinema.lead">The light follows the scene.</p>
+      <!-- Metrics tile -->
+      <aside class="metrics-card">
+        <div class="metric">
+          <span class="metric-label" data-i18n="metrics.mode">Mode</span>
+          <span class="metric-value" id="metric-mode">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label" data-i18n="metrics.bars">Bars</span>
+          <span class="metric-value" id="metric-bars">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label" data-i18n="metrics.monitors">Monitors</span>
+          <span class="metric-value" id="metric-monitors">0</span>
+        </div>
+        <button id="stop-everything" class="btn ghost stop-all" type="button" data-i18n="metrics.stop">Stop</button>
+      </aside>
 
-          <div class="grid">
-            <label class="field color-field"><span data-i18n="cinema.base">Base colour</span>
-              <input type="color" id="cin-color" value="#5a2882" />
-            </label>
+      <!-- Sync -->
+      <section id="panel-screen" class="accordion is-open" data-mode="screen">
+        <div class="acc-head"><span class="acc-name" data-i18n="mode.sync">Sync</span></div>
+        <div class="acc-content">
+          <article class="card">
+            <span class="hint acc-hint" data-i18n-tip="screen.tip">?</span>
+            <div id="capture-empty" class="empty">
+              <div class="empty-art" aria-hidden="true"></div>
+              <p class="lead" data-i18n="screen.empty">Connect your monitors to start the lighting.</p>
+              <button id="connect-monitors" class="btn primary" type="button" data-i18n="screen.connect">Connect monitors</button>
+            </div>
+            <div id="capture-live" class="hidden">
+              <div id="monmap" class="monmap"></div>
+              <div class="actions">
+                <button id="sync-start" class="btn primary" type="button" data-i18n="common.start">Start</button>
+                <button id="start-all" class="btn primary hidden" type="button" data-i18n="screen.startAll">Start sync</button>
+                <button id="stop-all" class="btn hidden" type="button" data-i18n="screen.stopAll">Stop</button>
+                <button id="disconnect-monitors" class="btn ghost" type="button" data-i18n="screen.disconnect">Disconnect</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Cinema -->
+      <section id="panel-cinema" class="accordion" data-mode="cinema">
+        <div class="acc-head"><span class="acc-name" data-i18n="mode.cinema">Cinema</span></div>
+        <div class="acc-content">
+          <article class="card">
+            <span class="hint acc-hint" data-i18n-tip="cinema.tip">?</span>
+            <p class="lead" data-i18n="cinema.lead">The light follows the scene.</p>
+            <div class="effects-controls">
+              <button id="cinema-start" class="btn primary" type="button" data-i18n="common.start">Start</button>
+              <div id="cinema-colors" class="swatches small" data-i18n-title="color.tip">
+                <button class="sw" data-cin="255,0,0" style="--c:#ff3b30" type="button" data-i18n-aria="color.red"></button>
+                <button class="sw" data-cin="0,255,0" style="--c:#34c759" type="button" data-i18n-aria="color.green"></button>
+                <button class="sw" data-cin="0,0,255" style="--c:#0a84ff" type="button" data-i18n-aria="color.blue"></button>
+                <button class="sw" data-cin="255,200,100" style="--c:#ffc864" type="button" data-i18n-aria="color.warm"></button>
+                <label class="sw custom" data-i18n-tip="color.custom">
+                  <input type="color" id="cin-color" value="#5a2882" />
+                </label>
+              </div>
+            </div>
             <label class="field grow"><span data-i18n="cinema.intensity">Intensity</span>
               <input type="range" id="cin-bri" min="10" max="100" value="70" />
               <output id="cin-bri-out">0.70</output>
             </label>
-          </div>
-
-          <div class="grid expert-only">
-            <label class="field"><span data-i18n="cinema.sensitivity">Sensitivity</span>
-              <input type="range" id="cin-sens" min="30" max="250" value="100" />
-              <output id="cin-sens-out">1.00</output>
-            </label>
-            <label class="field"><span data-i18n="cinema.floor">Rest level</span>
-              <input type="range" id="cin-floor" min="0" max="80" value="35" />
-              <output id="cin-floor-out">0.35</output>
-            </label>
-            <label class="field"><span data-i18n="cinema.smoothing">Inertia</span>
-              <input type="range" id="cin-smooth" min="20" max="300" value="60" />
-              <output id="cin-smooth-out">0.60</output>
-            </label>
-            <label class="field"><span data-i18n="cinema.contrast">Contrast</span>
-              <input type="range" id="cin-contrast" min="0" max="150" value="100" />
-              <output id="cin-contrast-out">1.00</output>
-            </label>
-            <label class="field"><span data-i18n="cinema.pulse">Pulse</span>
-              <input type="range" id="cin-pulse" min="0" max="100" value="0" />
-              <output id="cin-pulse-out">0.00</output>
-            </label>
-          </div>
-
-          <div class="actions">
-            <button id="cinema-start" class="btn primary" type="button" data-i18n="cinema.start">Start cinema mode</button>
-            <button id="cinema-stop" class="btn" type="button" data-i18n="cinema.stop">Stop</button>
-          </div>
-        </article>
-      </section>
-
-      <!-- ── Colour ─────────────────────────────────────────────── -->
-      <section id="panel-color" class="panel hidden">
-        <article class="card">
-          <div class="card-head">
-            <h2 data-i18n="color.title">Static colour</h2>
-            <span class="hint" data-i18n-tip="color.tip">?</span>
-          </div>
-          <div class="swatches">
-            <button class="sw" data-rgb="255,0,0" style="--c:#ff3b30" type="button" data-i18n-aria="color.red"></button>
-            <button class="sw" data-rgb="0,255,0" style="--c:#34c759" type="button" data-i18n-aria="color.green"></button>
-            <button class="sw" data-rgb="0,0,255" style="--c:#0a84ff" type="button" data-i18n-aria="color.blue"></button>
-            <button class="sw" data-rgb="255,200,100" style="--c:#ffc864" type="button" data-i18n-aria="color.warm"></button>
-            <button class="sw" data-rgb="0,0,0" style="--c:#000000" type="button" data-i18n-aria="color.off"></button>
-            <label class="sw custom" data-i18n-tip="color.custom">
-              <input type="color" id="custom-color" value="#ff8800" />
-            </label>
-          </div>
-          <div class="actions">
-            <button id="resume-sync" class="btn primary" type="button" data-i18n="color.resume">Back to screen sync</button>
-          </div>
-        </article>
-      </section>
-
-      <!-- ── Animations ─────────────────────────────────────────── -->
-      <section id="panel-anim" class="panel hidden">
-        <article class="card">
-          <div class="card-head">
-            <h2 data-i18n="anim.title">Effects</h2>
-            <span class="hint" data-i18n-tip="anim.tip">?</span>
-          </div>
-          <div id="anim-preview" class="anim-preview" aria-hidden="true"></div>
-          <div class="actions">
-            <button id="anim-play" class="btn primary" type="button" data-i18n="anim.play">Play on bars</button>
-            <button id="anim-stop" class="btn" type="button" data-i18n="anim.stop">Stop</button>
-          </div>
-          <div id="anim-gallery" class="anim-gallery"></div>
-        </article>
-
-        <article class="card" id="card-anim-edit">
-          <div class="card-head">
-            <h2 data-i18n="anim.edit">Create / edit animation</h2>
-            <span class="hint" data-i18n-tip="anim.editTip">?</span>
-          </div>
-          <div class="grid">
-            <label class="field"><span data-i18n="anim.name">Name</span>
-              <input type="text" id="anim-name" data-i18n-placeholder="anim.namePlaceholder" maxlength="40" />
-            </label>
-            <label class="field"><span data-i18n="anim.movement">Movement</span>
-              <select id="anim-movement"></select>
-            </label>
-            <label class="field grow" id="anim-speed-field"><span data-i18n="anim.speed">Speed</span>
-              <input type="range" id="anim-speed" min="0" max="100" value="25" />
-              <output id="anim-speed-out">0.25</output>
-            </label>
-            <label class="field"><span id="anim-cycles-label" data-i18n="anim.cyclesRot">Rotations per loop</span>
-              <input type="number" id="anim-cycles" min="0.1" max="60" step="0.5" value="1" />
-            </label>
-            <label class="field grow"><span data-i18n="anim.brightness">Brightness</span>
-              <input type="range" id="anim-brightness" min="0" max="100" value="90" />
-              <output id="anim-brightness-out">0.90</output>
-            </label>
-          </div>
-
-          <p class="lead" data-i18n="anim.boardHint">Click the board to add colour points and drag them to move. Dashed vectors jump straight between colours (swift); solid ones walk the board path.</p>
-          <canvas id="anim-board" class="anim-board" width="640" height="360"></canvas>
-
-          <div class="anim-points-head">
-            <span data-i18n="anim.points">Points</span>
-            <span class="muted" id="anim-duration-sum"></span>
-          </div>
-          <table class="anim-points">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th data-i18n="anim.colour">Colour</th>
-                <th data-i18n="anim.pointBrightnessPct">Brightness %</th>
-                <th data-i18n="anim.pointDurationPct">Duration %</th>
-                <th data-i18n="anim.pointSwiftShort">Swift</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="anim-points-body"></tbody>
-          </table>
-          <div class="actions">
-            <button id="anim-apply" class="btn" type="button" data-i18n="anim.apply">Check durations</button>
-            <button id="anim-add-point" class="btn" type="button" data-i18n="anim.addPoint">Add point</button>
-            <span id="anim-apply-msg" class="anim-msg"></span>
-          </div>
-
-          <div class="actions">
-            <button id="anim-save" class="btn primary" type="button" data-i18n="anim.save">Save</button>
-            <button id="anim-new" class="btn ghost" type="button" data-i18n="anim.new">New</button>
-          </div>
-        </article>
-      </section>
-
-      <!-- ── Automation ─────────────────────────────────────────── -->
-      <article class="card">
-        <div class="card-head">
-          <h2 data-i18n="auto.title">Automation</h2>
-          <span class="hint" data-i18n-tip="auto.tip">?</span>
+          </article>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="autostart" />
-          <span class="track"></span>
-          <span class="switch-label" data-i18n="auto.login">Start on login</span>
-        </label>
-        <label class="switch">
-          <input type="checkbox" id="autostart-sync" />
-          <span class="track"></span>
-          <span class="switch-label" data-i18n="auto.sync">Start sync automatically</span>
-        </label>
+      </section>
+
+      <!-- Effects -->
+      <section id="panel-anim" class="accordion" data-mode="anim">
+        <button class="acc-head" type="button">
+          <span class="acc-name" data-i18n="mode.anim">Effects</span>
+          <span class="acc-chevron" aria-hidden="true"></span>
+        </button>
+        <div class="acc-content">
+          <article class="card">
+            <div class="card-head">
+              <h2 data-i18n="anim.title">Effects</h2>
+              <span class="hint" data-i18n-tip="anim.tip">?</span>
+            </div>
+            <div class="effects-controls">
+              <button id="anim-play" class="btn primary" type="button" data-i18n="common.start">Start</button>
+              <div id="static-colors" class="swatches small hidden" data-i18n-title="color.tip">
+                <button class="sw" data-rgb="255,0,0" style="--c:#ff3b30" type="button" data-i18n-aria="color.red"></button>
+                <button class="sw" data-rgb="0,255,0" style="--c:#34c759" type="button" data-i18n-aria="color.green"></button>
+                <button class="sw" data-rgb="0,0,255" style="--c:#0a84ff" type="button" data-i18n-aria="color.blue"></button>
+                <button class="sw" data-rgb="255,200,100" style="--c:#ffc864" type="button" data-i18n-aria="color.warm"></button>
+                <button class="sw" data-rgb="0,0,0" style="--c:#0b0b0f" type="button" data-i18n-aria="color.off"></button>
+                <label class="sw custom" data-i18n-tip="color.custom">
+                  <input type="color" id="custom-color" value="#ff8800" />
+                </label>
+              </div>
+            </div>
+            <div id="anim-gallery" class="anim-gallery"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── Settings (expert) – slides in from the right ──────────── -->
+  <div id="settings-backdrop" class="settings-backdrop"></div>
+  <aside id="settings" class="settings" aria-hidden="true">
+    <div class="settings-head">
+      <h2 data-i18n="settings.title">Settings</h2>
+      <button id="settings-close" class="icon-btn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="settings-body">
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="screen.bars">Bars &amp; monitors</h2></div>
+        <div id="bars" class="bars"></div>
+        <div class="actions">
+          <button id="start-all-expert" class="btn primary" type="button" data-i18n="screen.startAll">Start sync</button>
+          <button id="stop-all-expert" class="btn" type="button" data-i18n="screen.stopAll">Stop</button>
+        </div>
       </article>
 
-      <!-- ── Profiles ───────────────────────────────────────────── -->
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="settings.cinema">Cinema fine-tuning</h2></div>
+        <div class="grid">
+          <label class="field"><span data-i18n="cinema.sensitivity">Sensitivity</span>
+            <input type="range" id="cin-sens" min="30" max="250" value="100" />
+            <output id="cin-sens-out">1.00</output>
+          </label>
+          <label class="field"><span data-i18n="cinema.floor">Rest level</span>
+            <input type="range" id="cin-floor" min="0" max="80" value="35" />
+            <output id="cin-floor-out">0.35</output>
+          </label>
+          <label class="field"><span data-i18n="cinema.smoothing">Inertia</span>
+            <input type="range" id="cin-smooth" min="20" max="300" value="60" />
+            <output id="cin-smooth-out">0.60</output>
+          </label>
+          <label class="field"><span data-i18n="cinema.contrast">Contrast</span>
+            <input type="range" id="cin-contrast" min="0" max="150" value="100" />
+            <output id="cin-contrast-out">1.00</output>
+          </label>
+          <label class="field"><span data-i18n="cinema.pulse">Pulse</span>
+            <input type="range" id="cin-pulse" min="0" max="100" value="0" />
+            <output id="cin-pulse-out">0.00</output>
+          </label>
+        </div>
+      </article>
+
+      <article class="card" id="card-advanced">
+        <div class="card-head"><h2 data-i18n="adv.title">Advanced settings</h2></div>
+        <div class="grid">
+          <label class="field"><span data-i18n="adv.fps">Frame rate (FPS)</span>
+            <input type="range" id="fps" min="10" max="60" value="24" />
+            <output id="fps-out">24</output>
+          </label>
+          <label class="field"><span data-i18n="adv.smoothing">Smoothing</span>
+            <input type="range" id="smooth" min="0" max="100" value="22" />
+            <output id="smooth-out">0.22</output>
+          </label>
+          <label class="field"><span data-i18n="adv.brightness">Brightness</span>
+            <input type="range" id="brightness" min="0" max="255" value="200" />
+            <output id="brightness-out">200</output>
+          </label>
+        </div>
+        <div class="grid">
+          <label class="field"><span data-i18n="adv.filterStrength">Filter strength</span>
+            <input type="range" id="filter-strength" min="1" max="32" value="8" />
+            <output id="filter-strength-out">8</output>
+          </label>
+          <label class="field"><span data-i18n="adv.filter">Flicker filter</span>
+            <select id="filter">
+              <option value="none" data-i18n="filter.none">none</option>
+              <option value="deadband" data-i18n="filter.deadband">Deadband</option>
+              <option value="quantize" data-i18n="filter.quantize">Quantise</option>
+              <option value="quantize_smooth" data-i18n="filter.quantize_smooth">Quantise + smooth</option>
+              <option value="smooth" data-i18n="filter.smooth">Smooth</option>
+              <option value="median3" data-i18n="filter.median3">Median 3</option>
+              <option value="median5" data-i18n="filter.median5">Median 5</option>
+              <option value="mean4" data-i18n="filter.mean4">Mean 4</option>
+              <option value="test" data-i18n="filter.test">Test (negative)</option>
+            </select>
+          </label>
+          <label class="field"><span data-i18n="adv.maxFrames">Reports/update</span>
+            <span class="hint" data-i18n-tip="adv.maxFramesTip">?</span>
+            <input type="number" id="max-frames" min="0" max="8" value="0" />
+          </label>
+        </div>
+      </article>
+
+      <article class="card" id="card-models">
+        <div class="card-head">
+          <h2 data-i18n="models.title">Bar models</h2>
+          <span class="hint" data-i18n-tip="models.tip">?</span>
+        </div>
+        <div id="model-list" class="device-list"></div>
+        <div id="model-form" class="model-form hidden">
+          <div class="grid four" style="margin-top:14px">
+            <label class="field"><span data-i18n="models.name">Name</span><input type="text" id="model-name" data-i18n-placeholder="models.namePlaceholder" maxlength="40" /></label>
+            <label class="field"><span data-i18n="models.leds">LEDs</span><input type="number" id="model-leds" value="54" min="1" max="254" /></label>
+            <label class="field"><span data-i18n="adv.left">Left</span><input type="number" id="model-left" value="14" min="0" max="254" /></label>
+            <label class="field"><span data-i18n="adv.top">Top</span><input type="number" id="model-top" value="26" min="0" max="254" /></label>
+            <label class="field"><span data-i18n="adv.bottom">Bottom</span><input type="number" id="model-bottom" value="0" min="0" max="254" /></label>
+            <label class="field"><span data-i18n="adv.right">Right</span><input type="number" id="model-right" value="14" min="0" max="254" /></label>
+          </div>
+          <details class="model-adv">
+            <summary data-i18n="models.adv">Identification &amp; protocol</summary>
+            <div class="grid four">
+              <label class="field"><span data-i18n="models.vendor">Vendor ID</span><input type="text" id="model-vendor" value="1a86" /></label>
+              <label class="field"><span data-i18n="models.product">Product ID</span><input type="text" id="model-product" value="fe07" /></label>
+              <label class="field"><span data-i18n="models.usage">Usage page</span><input type="text" id="model-usage" value="ff00" /></label>
+              <label class="field"><span data-i18n="models.report">Report size</span><input type="number" id="model-report" value="64" min="1" max="1024" /></label>
+              <label class="field"><span data-i18n="models.sections">Sections/frame</span><input type="number" id="model-sections" value="11" min="1" max="64" /></label>
+              <label class="field"><span data-i18n="models.maxleds">Max LEDs</span><input type="number" id="model-maxleds" value="254" min="1" max="254" /></label>
+              <label class="field"><span data-i18n="models.gap">Frame gap (ms)</span><input type="number" id="model-gap" value="3" min="0" max="100" /></label>
+            </div>
+          </details>
+          <div class="actions">
+            <button id="model-save" class="btn primary" type="button" data-i18n="models.save">Save model</button>
+            <button id="model-cancel" class="btn ghost" type="button" data-i18n="models.cancel">Cancel</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="model-add" class="btn" type="button" data-i18n="models.add">Add model</button>
+        </div>
+      </article>
+
+      <article class="card" id="card-devices">
+        <div class="card-head"><h2 data-i18n="devices.title">Devices</h2></div>
+        <div id="device-list" class="device-list"></div>
+      </article>
+
+      <!-- Authoring lives in its own pop-out so the settings stay tidy -->
+      <article class="card" id="card-anim-open">
+        <div class="card-head">
+          <h2 data-i18n="anim.edit">Create / edit animation</h2>
+          <span class="hint" data-i18n-tip="anim.editTip">?</span>
+        </div>
+        <div class="actions">
+          <button id="open-anim-editor" class="btn" type="button" data-i18n="anim.openEditor">Open editor</button>
+        </div>
+      </article>
+
       <article class="card" id="card-profiles">
         <div class="card-head">
           <h2 data-i18n="profiles.title">Profiles</h2>
@@ -242,102 +296,106 @@
         <div id="preset-list" class="preset-list"></div>
       </article>
 
-      <!-- ── Advanced (expert) ──────────────────────────────────── -->
-      <article class="card expert-only" id="card-advanced">
-        <div class="card-head"><h2 data-i18n="adv.title">Advanced settings</h2></div>
-        <div class="grid">
-          <label class="field"><span data-i18n="adv.fps">Frame rate (FPS)</span>
-            <input type="range" id="fps" min="10" max="60" value="24" />
-            <output id="fps-out">24</output>
-          </label>
-          <label class="field"><span data-i18n="adv.smoothing">Smoothing</span>
-            <input type="range" id="smooth" min="0" max="100" value="22" />
-            <output id="smooth-out">0.22</output>
-          </label>
-          <label class="field"><span data-i18n="adv.brightness">Brightness</span>
-            <input type="range" id="brightness" min="0" max="255" value="200" />
-            <output id="brightness-out">200</output>
-          </label>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="auto.title">Automation</h2>
+          <span class="hint" data-i18n-tip="auto.tip">?</span>
         </div>
-        <div class="grid four">
-          <label class="field"><span data-i18n="adv.left">Left</span><input type="number" id="z-left" value="18" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.top">Top</span><input type="number" id="z-top" value="18" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.right">Right</span><input type="number" id="z-right" value="18" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.bottom">Bottom</span><input type="number" id="z-bottom" value="0" min="0" max="254" /></label>
-        </div>
-        <div class="grid">
-          <label class="field"><span data-i18n="adv.filter">Flicker filter</span>
-            <select id="filter">
-              <option value="none" data-i18n="filter.none">none</option>
-              <option value="deadband" data-i18n="filter.deadband">Deadband</option>
-              <option value="quantize" data-i18n="filter.quantize">Quantise</option>
-              <option value="quantize_smooth" data-i18n="filter.quantize_smooth">Quantise + smooth</option>
-              <option value="smooth" data-i18n="filter.smooth">Smooth</option>
-              <option value="median3" data-i18n="filter.median3">Median 3</option>
-              <option value="median5" data-i18n="filter.median5">Median 5</option>
-              <option value="mean4" data-i18n="filter.mean4">Mean 4</option>
-              <option value="test" data-i18n="filter.test">Test (negative)</option>
-            </select>
-          </label>
-          <label class="field"><span data-i18n="adv.filterStrength">Filter strength</span>
-            <input type="range" id="filter-strength" min="1" max="32" value="8" />
-            <output id="filter-strength-out">8</output>
-          </label>
-          <label class="field"><span data-i18n="adv.maxFrames">Reports/update</span>
-            <span class="hint" data-i18n-tip="adv.maxFramesTip">?</span>
-            <input type="number" id="max-frames" min="0" max="8" value="0" />
-          </label>
-        </div>
+        <label class="switch">
+          <input type="checkbox" id="autostart" />
+          <span class="track"></span>
+          <span class="switch-label" data-i18n="auto.login">Start on login</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="autostart-sync" />
+          <span class="track"></span>
+          <span class="switch-label" data-i18n="auto.sync">Start sync automatically</span>
+        </label>
       </article>
 
-      <!-- ── Bar models (expert) ────────────────────────────────── -->
-      <article class="card expert-only" id="card-models">
-        <div class="card-head">
-          <h2 data-i18n="models.title">Bar models</h2>
-          <span class="hint" data-i18n-tip="models.tip">?</span>
+      
+    </div>
+  </aside>
+
+  <!-- ── Animation authoring – its own pop-out ─────────────────── -->
+  <div id="anim-editor-backdrop" class="settings-backdrop"></div>
+  <aside id="anim-editor" class="settings anim-editor" aria-hidden="true">
+    <div class="settings-head">
+      <h2 data-i18n="anim.edit">Create / edit animation</h2>
+      <button id="anim-editor-close" class="icon-btn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="settings-body">
+      <article class="card">
+        <div class="grid">
+          <label class="field"><span data-i18n="anim.name">Name</span>
+            <select id="anim-name"></select>
+          </label>
+          <label class="field"><span data-i18n="anim.movement">Movement</span>
+            <select id="anim-movement"></select>
+          </label>
+          <label class="field grow" id="anim-speed-field"><span data-i18n="anim.speed">Speed</span>
+            <input type="range" id="anim-speed" min="0" max="100" value="25" />
+            <output id="anim-speed-out">0.25</output>
+          </label>
+          <label class="field"><span id="anim-cycles-label" data-i18n="anim.cyclesRot">Rotations per loop</span>
+            <input type="number" id="anim-cycles" min="0.1" max="60" step="0.5" value="1" />
+          </label>
+          <label class="field grow"><span data-i18n="anim.brightness">Brightness</span>
+            <input type="range" id="anim-brightness" min="0" max="100" value="90" />
+            <output id="anim-brightness-out">0.90</output>
+          </label>
         </div>
-        <div id="model-list" class="device-list"></div>
-        <div class="grid four" style="margin-top:14px">
-          <label class="field"><span data-i18n="models.name">Name</span><input type="text" id="model-name" data-i18n-placeholder="models.namePlaceholder" maxlength="40" /></label>
-          <label class="field"><span data-i18n="models.leds">LEDs</span><input type="number" id="model-leds" value="54" min="1" max="254" /></label>
-          <label class="field"><span data-i18n="adv.left">Left</span><input type="number" id="model-left" value="14" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.top">Top</span><input type="number" id="model-top" value="26" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.bottom">Bottom</span><input type="number" id="model-bottom" value="0" min="0" max="254" /></label>
-          <label class="field"><span data-i18n="adv.right">Right</span><input type="number" id="model-right" value="14" min="0" max="254" /></label>
+        <p class="lead" data-i18n="anim.boardHint">Click the board to add colour points and drag them to move. Dashed vectors jump straight between colours (swift); solid ones walk the board path.</p>
+        <canvas id="anim-board" class="anim-board" width="640" height="360"></canvas>
+        <div class="anim-points-head">
+          <span data-i18n="anim.points">Points</span>
+          <span class="muted" id="anim-duration-sum"></span>
+        </div>
+        <table class="anim-points">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th data-i18n="anim.colour">Colour</th>
+              <th data-i18n="anim.pointBrightnessPct">Brightness %</th>
+              <th data-i18n="anim.pointDurationPct">Duration %</th>
+              <th data-i18n="anim.pointSwiftShort">Swift</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="anim-points-body"></tbody>
+        </table>
+        <div class="actions">
+          <button id="anim-apply" class="btn" type="button" data-i18n="anim.apply">Check durations</button>
+          <button id="anim-add-point" class="btn" type="button" data-i18n="anim.addPoint">Add point</button>
+          <span id="anim-apply-msg" class="anim-msg"></span>
         </div>
         <div class="actions">
-          <button id="model-add" class="btn" type="button" data-i18n="models.add">Add model</button>
+          <button id="anim-save" class="btn primary" type="button" data-i18n="anim.save">Save</button>
+          <button id="anim-new" class="btn ghost" type="button" data-i18n="anim.new">New</button>
         </div>
       </article>
-
-      <!-- ── Devices (expert) ───────────────────────────────────── -->
-      <article class="card expert-only" id="card-devices">
-        <div class="card-head"><h2 data-i18n="devices.title">Devices</h2></div>
-        <div id="device-list" class="device-list"></div>
-      </article>
-
-      <!-- ── Legacy (expert) ────────────────────────────────────── -->
-      <article class="card expert-only" id="card-legacy">
-        <div class="card-head">
-          <h2 data-i18n="legacy.title">Legacy UI</h2>
-          <span class="hint" data-i18n-tip="legacy.tip">?</span>
-        </div>
-        <button id="open-legacy" class="btn" type="button" data-i18n="legacy.open">Open legacy UI</button>
-      </article>
-    </main>
-  </div>
+    </div>
+  </aside>
 
   <div id="boot-error" class="boot-error hidden">
     <span data-i18n="boot.error">The user interface could not be loaded.</span>
-    <a href="legacy/index.html" data-i18n="boot.legacy">Open legacy UI</a>
   </div>
 
   <script>
+    function bqShowError(msg) {
+      var el = document.getElementById("boot-error");
+      if (!el) return;
+      el.classList.remove("hidden");
+      var s = el.querySelector("span");
+      if (s) s.textContent = "ERR: " + msg;
+    }
+    window.addEventListener("error", function (e) { bqShowError(e.message); });
+    window.addEventListener("unhandledrejection", function (e) {
+      bqShowError((e.reason && (e.reason.message || e.reason)) || "unhandled");
+    });
     setTimeout(function () {
-      if (!window.__bloqsyncReady) {
-        document.getElementById("boot-error")?.classList.remove("hidden");
-      }
-    }, 4000);
+      if (!window.__bloqsyncReady) bqShowError("timeout");
+    }, 8000);
   </script>
   <script type="module" src="main.js"></script>
 </body>

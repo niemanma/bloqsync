@@ -13,7 +13,7 @@ use bloqsync::engine::{spawn, SyncConfig};
 use bloqsync::filters::FilterKind;
 use bloqsync::sampling::Layout;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
@@ -55,6 +55,27 @@ pub(crate) fn parse_filter(name: Option<&str>) -> FilterKind {
         Some("test") => FilterKind::Test,
         _ => FilterKind::None,
     }
+}
+
+/// Stable key for a device (used by the UI and the live mirror).
+fn device_key(d: &Device) -> String {
+    if d.uuid.is_empty() { d.info.id.clone() } else { d.uuid.clone() }
+}
+
+/// Get (or create) the live LED-colour slot for a bar key.
+pub(crate) fn live_slot(live: &crate::state::LiveMap, key: &str) -> Arc<Mutex<Vec<[u8; 3]>>> {
+    let mut map = live.lock().unwrap();
+    map.entry(key.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(Vec::new())))
+        .clone()
+}
+
+/// Publish a rendered frame to the live mirror.
+fn publish(live: &crate::state::LiveMap, key: &str, cols: &[[u8; 3]]) {
+    let slot = live_slot(live, key);
+    let mut v = slot.lock().unwrap();
+    v.clear();
+    v.extend_from_slice(cols);
 }
 
 pub(crate) fn open_capture_inner(state: &AppState) -> Result<Vec<StreamInfo>, String> {
@@ -100,9 +121,10 @@ pub(crate) fn open_capture_with(
 
 pub(crate) fn stop_all_inner(state: &AppState) {
     let mut bars = state.bars.lock().unwrap();
-    for (_, b) in bars.drain() {
+    for (key, b) in bars.drain() {
         b.sync.stop();
         let _ = b.device.set_persistent_color([255, 200, 100]);
+        publish(&state.live, &key, &vec![[255, 200, 100]; b.device.led_count]);
     }
 }
 
@@ -188,9 +210,13 @@ pub(crate) fn start_bar_inner(
         filter_strength: settings.filter_strength,
         max_frames: settings.max_frames,
         layout: settings.layout,
+        inter_frame_gap: std::time::Duration::from_millis(
+            device.info.protocol.inter_frame_gap_ms,
+        ),
         ..Default::default()
     };
-    let sync = spawn(device.clone(), slot, cfg).map_err(|e| e.to_string())?;
+    let preview = live_slot(&state.live, bar_path);
+    let sync = spawn(device.clone(), slot, cfg, preview).map_err(|e| e.to_string())?;
     state
         .bars
         .lock()
@@ -249,6 +275,7 @@ pub(crate) fn cinema_start_inner(
         ..Default::default()
     };
     let devices_thread = devices.clone();
+    let live = state.live.clone();
     let thread = std::thread::Builder::new()
         .name("bloqsync-cinema".into())
         .spawn(move || {
@@ -259,6 +286,7 @@ pub(crate) fn cinema_start_inner(
                 let s = spectrum.lock().unwrap().unwrap_or_default();
                 for (i, d) in devices_thread.iter().enumerate() {
                     let cols = states[i].render(&s, d.led_count, &params);
+                    publish(&live, &device_key(d), &cols);
                     let _ = d.send_colors_paced(&cols, Duration::from_millis(3), 8);
                 }
                 let e = t.elapsed();
@@ -319,6 +347,7 @@ pub(crate) fn animation_start_inner(
     let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let running_t = running.clone();
     let devices_thread = devices.clone();
+    let live = state.live.clone();
     let spec = anim;
     let thread = std::thread::Builder::new()
         .name("bloqsync-anim".into())
@@ -332,6 +361,7 @@ pub(crate) fn animation_start_inner(
                 last = tick;
                 for (i, d) in devices_thread.iter().enumerate() {
                     let cols = animators[i].render(dt, d.led_count, &spec);
+                    publish(&live, &device_key(d), &cols);
                     let _ = d.send_colors_paced(&cols, Duration::from_millis(3), 8);
                 }
                 let e = tick.elapsed();
