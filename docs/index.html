@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bloqsync — ambient light for ROBOBLOQ SyncLight</title>
+  <meta name="description" content="High-performance ambient light (Ambilight) for ROBOBLOQ SyncLight USB LED bars on Linux / GNOME / Wayland. Screen sync, audio-reactive Cinema mode, effects with a visual editor, and connect bars into one strip." />
+  <link rel="icon" href="app-icon.png" />
+  <link rel="apple-touch-icon" href="app-icon.png" />
+  <style>
+    :root {
+      --bg: #0a0912;
+      --bg-2: #12101d;
+      --surface: rgba(255,255,255,.045);
+      --border: rgba(255,255,255,.10);
+      --fg: #eceaf6;
+      --muted: #a49fc0;
+      --accent: #8b5cf6;
+      --accent-2: #22d3ee;
+      --accent-glow: rgba(139,92,246,.5);
+      --radius: 18px;
+      --max: 1120px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--fg);
+      background:
+        radial-gradient(1200px 600px at 15% -10%, rgba(139,92,246,.22), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(34,211,238,.12), transparent 55%),
+        var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+
+    /* Header */
+    header.nav {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(14px);
+      background: rgba(10,9,18,.72);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; gap: 16px; height: 62px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .02em; }
+    .brand img { width: 26px; height: 26px; border-radius: 7px; box-shadow: 0 0 14px var(--accent-glow); }
+    .nav-links { margin-left: auto; display: flex; align-items: center; gap: 20px; }
+    .nav-links a { color: var(--muted); font-size: 14px; font-weight: 600; transition: color .15s; }
+    .nav-links a:hover { color: var(--fg); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+      transition: transform .12s, box-shadow .2s, background .2s; cursor: pointer;
+    }
+    .btn:hover { transform: translateY(-1px); background: rgba(255,255,255,.08); }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent), #6d28d9);
+      border-color: transparent; color: #fff;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+    .btn.primary:hover { box-shadow: 0 12px 30px var(--accent-glow); }
+    .btn.ghost { background: transparent; }
+    @media (max-width: 720px) { .nav-links a:not(.btn) { display: none; } }
+
+    /* Hero */
+    .hero { padding: 84px 0 40px; text-align: center; }
+    .hero .eyebrow {
+      display: inline-block; font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--accent-2); border: 1px solid var(--border); border-radius: 999px;
+      padding: 5px 14px; margin-bottom: 22px; background: var(--surface);
+    }
+    .hero h1 {
+      font-size: clamp(38px, 6vw, 66px); line-height: 1.05; margin: 0 0 18px;
+      font-weight: 850; letter-spacing: -.02em;
+      background: linear-gradient(180deg, #fff, #b9b2e0);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero p.lead { font-size: clamp(16px, 2.2vw, 20px); color: var(--muted); max-width: 720px; margin: 0 auto 30px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .tags { margin-top: 26px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .tag { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; background: var(--surface); }
+
+    /* Screenshots */
+    section { padding: 54px 0; }
+    .section-title { text-align: center; margin-bottom: 8px; font-size: clamp(24px, 3.5vw, 34px); font-weight: 800; letter-spacing: -.01em; }
+    .section-sub { text-align: center; color: var(--muted); margin: 0 auto 34px; max-width: 640px; }
+    .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 860px) { .shots { grid-template-columns: 1fr; } }
+    .shot { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-2); box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+    .shot img { display: block; width: 100%; height: auto; }
+    .shot figcaption { font-size: 13px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--border); }
+    .shot.wide { grid-column: 1 / -1; }
+
+    /* Features */
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 22px; background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,0) 45%), rgba(18,16,29,.8);
+    }
+    .card .ico { font-size: 22px; margin-bottom: 10px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    /* Install + extend */
+    .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; background: rgba(18,16,29,.75); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+    pre { margin: 12px 0 0; padding: 14px 16px; border-radius: 12px; background: #0b0a13; border: 1px solid var(--border); overflow-x: auto; font-size: 13.5px; }
+    code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+    .panel h3 { margin-top: 0; }
+    .panel p { color: var(--muted); }
+    .panel ul { color: var(--muted); padding-left: 18px; }
+    .panel li { margin: 4px 0; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding: 34px 0 50px; color: var(--muted); font-size: 13.5px; }
+    footer .foot-inner { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    footer a { color: var(--accent-2); }
+    .note { margin-top: 14px; font-size: 12.5px; color: #837ea8; }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="app-icon.png" alt="" /> bloqsync</a>
+      <nav class="nav-links">
+        <a href="#screenshots">Screenshots</a>
+        <a href="#features">Features</a>
+        <a href="#extend">Extend it</a>
+        <a class="btn ghost" href="https://github.com/niemanma/bloqsync">GitHub</a>
+        <a class="btn primary" href="https://github.com/niemanma/bloqsync/releases">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap">
+      <span class="eyebrow">Linux · GNOME · Wayland</span>
+      <h1>Ambient light for your desk,<br />driven by your screen</h1>
+      <p class="lead">
+        High-performance Ambilight synchronisation for <strong>ROBOBLOQ SyncLight</strong>
+        USB LED bars — plus an audio-reactive cinema mode, a dozen effects with a
+        visual editor, and the option to run effects across several bars as one strip.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/niemanma/bloqsync/releases">Download for Linux (.deb)</a>
+        <a class="btn" href="https://github.com/niemanma/bloqsync#readme">Read the docs</a>
+      </div>
+      <div class="tags">
+        <span class="tag">Rust + Tauri</span>
+        <span class="tag">PipeWire screen sync</span>
+        <span class="tag">Cinema mode</span>
+        <span class="tag">12 effects + editor</span>
+        <span class="tag">English / German</span>
+        <span class="tag">Public domain</span>
+      </div>
+    </section>
+
+    <section id="screenshots" class="wrap">
+      <h2 class="section-title">See it in action</h2>
+      <p class="section-sub">A dark, native interface with a real-time LED mirror — the colours on screen are the colours on your bars.</p>
+      <div class="shots">
+        <figure class="shot wide">
+          <img src="main_effect_rainbow_strip.png" alt="Rainbow Wave running across two bars as one continuous strip" />
+          <figcaption>Connect bars into one strip — the Rainbow Wave flows once across both bars instead of replaying on each.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="main_effect_aurora_unstrip.png" alt="Aurora effect running per bar" />
+          <figcaption>Effects per bar — Aurora with its own live preview.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="settings_menue.png" alt="The compact settings panel" />
+          <figcaption>A compact, categorised settings panel for every detail.</figcaption>
+        </figure>
+        <figure class="shot wide">
+          <img src="animation_editor.png" alt="The visual animation editor" />
+          <figcaption>Build your own effects on a Hue × Saturation board and save them as JSON.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="features" class="wrap">
+      <h2 class="section-title">Everything in one app</h2>
+      <p class="section-sub">Plug and play out of the box — and deeply configurable when you want to.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">🖥️</div><h3>Screen sync</h3><p>True per-LED gradients captured through PipeWire — no screenshot subprocesses.</p></div>
+        <div class="card"><div class="ico">🎬</div><h3>Cinema mode</h3><p>Audio-reactive lighting for DRM content such as Netflix, where the picture is black to capture.</p></div>
+        <div class="card"><div class="ico">✨</div><h3>Effects &amp; editor</h3><p>A dozen built-in animations plus a visual editor to create and share your own as JSON.</p></div>
+        <div class="card"><div class="ico">🔗</div><h3>Connect bars</h3><p>Treat two or more bars as one continuous strip and run an effect across the whole length.</p></div>
+        <div class="card"><div class="ico">🎛️</div><h3>Bar models</h3><p>Describe each bar's LED count, edge layout and protocol in a small JSON file.</p></div>
+        <div class="card"><div class="ico">👤</div><h3>Profiles &amp; autostart</h3><p>Named profiles remember settings and the bar↔monitor mapping; start automatically on login.</p></div>
+      </div>
+    </section>
+
+    <section id="install" class="wrap">
+      <h2 class="section-title">Install</h2>
+      <p class="section-sub">Grab the latest <code>.deb</code> from the releases page and install it — dependencies come along automatically.</p>
+      <div class="two">
+        <div class="panel">
+          <h3>Users</h3>
+          <p>No Rust, no build tools, no manual steps.</p>
+          <pre><code>sudo apt install ./bloqsync_*_amd64.deb</code></pre>
+          <p style="margin-top:14px">Then launch <strong>bloqsync</strong>, connect your monitors once, and hit <strong>Start</strong>.</p>
+        </div>
+        <div class="panel">
+          <h3>From source</h3>
+          <p>Build the app and bundle a package yourself.</p>
+          <pre><code>git clone https://github.com/niemanma/bloqsync
+cd bloqsync
+./install.sh</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="extend" class="wrap">
+      <h2 class="section-title">Built to be extended</h2>
+      <p class="section-sub">Bar models and effects are plain JSON — add your own by dropping in a file, or share it with everyone.</p>
+      <div class="two">
+        <div class="panel">
+          <h3>Bar models</h3>
+          <p>Describe a bar's USB identification, LED count, edge distribution and protocol:</p>
+          <ul>
+            <li><code>match</code> — vendor / product / usage page</li>
+            <li><code>leds</code>, <code>left/top/bottom/right</code></li>
+            <li><code>protocol</code> — report size, sections/frame, actions…</li>
+          </ul>
+          <p>Own a different SyncLight size, or a different bar entirely? Add a model and open a PR.</p>
+        </div>
+        <div class="panel">
+          <h3>Effects</h3>
+          <p>An effect is a closed chain of colour points plus a movement — rendered to one colour per LED:</p>
+          <pre><code>{ "points": [
+  { "hue": 0.08, "sat": 0.85, "brightness": 1.0,  "duration": 50 },
+  { "hue": 0.08, "sat": 0.85, "brightness": 0.12, "duration": 50 }
+] }</code></pre>
+          <p>Build one in the editor, or drop a JSON file under <code>gui/animations/</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" style="text-align:center">
+      <h2 class="section-title">Get involved</h2>
+      <p class="section-sub">Test it on your hardware, create profiles, add bar models, design effects, translate the UI — contributions and shared JSON are very welcome.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/niemanma/bloqsync">Star on GitHub</a>
+        <a class="btn" href="https://github.com/niemanma/bloqsync/issues">Report / request</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <div><strong>bloqsync</strong> — unofficial, AI-generated, public domain (<a href="https://github.com/niemanma/bloqsync/blob/main/LICENSE">Unlicense</a>).</div>
+      <div><a href="https://github.com/niemanma/bloqsync">Repository</a> · <a href="https://github.com/niemanma/bloqsync/releases">Releases</a> · <a href="https://github.com/niemanma/bloqsync#readme">Docs</a></div>
+    </div>
+    <div class="wrap note">
+      Not affiliated with Robobloq. “ROBOBLOQ”, “SyncLight” and other names are trademarks of their respective owners, used descriptively. Developed and tested on the 24″ / 54-LED variant.
+    </div>
+  </footer>
+
+</body>
+</html>
