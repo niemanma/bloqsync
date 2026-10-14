@@ -11,7 +11,4 @@ export function initCinema() {
       setMode("cinema");
     } catch (_) { /* ignored */ }
   });
-  $("#cinema-stop")?.addEventListener("click", () => {
-    invoke("cinema_stop").catch(() => {});
-  });
 }

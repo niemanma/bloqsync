@@ -26,7 +26,6 @@ const round2 = (v) => Math.round(v * 100) / 100;
 function normalizedSettings(s) {
   return {
     fps: s.fps, smooth: round2(s.smooth), brightness: s.brightness,
-    left: s.left, top: s.top, right: s.right, bottom: s.bottom,
     filter: s.filter, filter_strength: s.filter_strength, max_frames: s.max_frames,
     custom_color: s.custom_color, cinema_color: s.cinema_color,
     cinema_sensitivity: round2(s.cinema_sensitivity),
@@ -72,10 +71,6 @@ export function readSettings() {
     fps: int("fps", 24),
     smooth: int("smooth", 22) / 100,
     brightness: int("brightness", 200),
-    left: int("z-left", 18),
-    top: int("z-top", 18),
-    right: int("z-right", 18),
-    bottom: int("z-bottom", 0),
     filter: $("#filter")?.value || "none",
     filter_strength: int("filter-strength", 8),
     max_frames: int("max-frames", 0),
@@ -86,8 +81,9 @@ export function readSettings() {
     cinema_brightness: int("cin-bri", 70) / 100,
     cinema_floor: int("cin-floor", 35) / 100,
     cinema_smooth: int("cin-smooth", 60) / 100,
-    cinema_contrast: int("cin-contrast", 100) / 100,
+    cinema_contrast: int("cin-contrast", 50) / 100,
     cinema_pulse: int("cin-pulse", 0) / 100,
+    cinema_stereo: int("cin-stereo", 0) / 100,
   };
 }
 
@@ -103,10 +99,6 @@ export function setSettings(s) {
   put("fps", s.fps ?? 24);
   put("smooth", Math.round((s.smooth ?? 0.22) * 100));
   put("brightness", s.brightness ?? 200);
-  put("z-left", s.left ?? 18);
-  put("z-top", s.top ?? 18);
-  put("z-right", s.right ?? 18);
-  put("z-bottom", s.bottom ?? 0);
   const filter = $("#filter");
   if (filter) filter.value = s.filter || "none";
   put("filter-strength", s.filter_strength ?? 8);
@@ -121,8 +113,9 @@ export function setSettings(s) {
   put("cin-bri", Math.round((s.cinema_brightness ?? 0.7) * 100));
   put("cin-floor", Math.round((s.cinema_floor ?? 0.35) * 100));
   put("cin-smooth", Math.round((s.cinema_smooth ?? 0.6) * 100));
-  put("cin-contrast", Math.round((s.cinema_contrast ?? 1.0) * 100));
+  put("cin-contrast", Math.round((s.cinema_contrast ?? 0.5) * 100));
   put("cin-pulse", Math.round((s.cinema_pulse ?? 0.0) * 100));
+  put("cin-stereo", Math.round((s.cinema_stereo ?? 0.0) * 100));
 }
 
 /** Arguments for the `start_bar` command. */
@@ -132,10 +125,6 @@ export function screenSettings() {
     fps: s.fps,
     smooth: s.smooth,
     brightness: s.brightness,
-    left: s.left,
-    top: s.top,
-    right: s.right,
-    bottom: s.bottom,
     filter: s.filter,
     filterStrength: s.filter_strength,
     maxFrames: s.max_frames,
@@ -153,6 +142,7 @@ export function cinemaSettings() {
     floor: s.cinema_floor,
     smooth: s.cinema_smooth,
     contrast: s.cinema_contrast,
+    stereo: s.cinema_stereo,
     r, g, b,
   };
 }
@@ -238,8 +228,14 @@ export async function loadConfig() {
     state.config = { ...DEFAULT_CONFIG };
   }
   setSettings(state.config);
+  // Reflect the real state of the autostart file, not just the config flag
+  // (the desktop entry may have been removed by another tool).
+  let autostartOn = !!state.config.autostart;
+  try {
+    autostartOn = await invoke("autostart_enabled");
+  } catch (_) { /* keep the config value */ }
   const autostart = $("#autostart");
-  if (autostart) autostart.checked = !!state.config.autostart;
+  if (autostart) autostart.checked = autostartOn;
   const autostartSync = $("#autostart-sync");
   if (autostartSync) autostartSync.checked = !!state.config.autostart_sync;
   return state.config;

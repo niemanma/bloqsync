@@ -116,7 +116,21 @@ pub struct Capture {
     pub counter: Arc<AtomicU64>,
     /// Persistable token for restoring this selection without a dialog.
     pub restore_token: Option<String>,
-    _thread: std::thread::JoinHandle<()>,
+    /// Asks the PipeWire thread to quit its loop (delivered on the loop thread).
+    quit: pw::channel::Sender<()>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for Capture {
+    fn drop(&mut self) {
+        // Ask the loop to quit (handled on the PipeWire thread itself), then
+        // wait for it — so the loop, streams and portal session are torn down
+        // cleanly instead of leaking a zombie thread.
+        let _ = self.quit.send(());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 struct PortalSession {
@@ -134,6 +148,7 @@ pub fn start(multiple: bool, restore_token: Option<String>) -> Result<Capture> {
     let (tx, rx) = std::sync::mpsc::channel();
     let counter = Arc::new(AtomicU64::new(0));
     let counter_thread = counter.clone();
+    let (quit, quit_rx) = pw::channel::channel::<()>();
 
     let handle = std::thread::Builder::new()
         .name("pw-capture".into())
@@ -177,7 +192,7 @@ pub fn start(multiple: bool, restore_token: Option<String>) -> Result<Capture> {
                 return;
             }
 
-            if let Err(e) = run_pipewire(session, &node_ids, &slots, counter_thread) {
+            if let Err(e) = run_pipewire(session, &node_ids, &slots, counter_thread, quit_rx) {
                 eprintln!("bloqsync: capture stopped: {e:#}");
             }
             drop(rt);
@@ -190,7 +205,8 @@ pub fn start(multiple: bool, restore_token: Option<String>) -> Result<Capture> {
             streams,
             counter,
             restore_token,
-            _thread: handle,
+            quit,
+            thread: Some(handle),
         }),
         Err(e) => Err(e),
     }
@@ -245,6 +261,7 @@ fn run_pipewire(
     node_ids: &[u32],
     slots: &[FrameSlot],
     counter: Arc<AtomicU64>,
+    quit_rx: pw::channel::Receiver<()>,
 ) -> Result<()> {
     // Destructure so the portal proxy/session stay alive for the whole loop.
     let PortalSession {
@@ -256,10 +273,20 @@ fn run_pipewire(
     } = portal;
 
     pw::init();
-    let mainloop = pw::main_loop::MainLoopBox::new(None)?;
+    // The loop runs exactly like before (`run()`), but a channel message makes
+    // it quit from within the loop thread when the session is dropped.
+    let mainloop = pw::main_loop::MainLoopRc::new(None)?;
+    let _receiver = quit_rx.attach(mainloop.loop_(), {
+        let mainloop = mainloop.clone();
+        move |_| mainloop.quit()
+    });
     let context = pw::context::ContextBox::new(mainloop.loop_(), None)?;
     let core = context.connect_fd(fd, None)?;
 
+    // Keep the streams and their listeners alive (and owned) for the whole
+    // loop. Declared `streams` first so that, on scope exit, the listeners are
+    // dropped before the streams they were registered on.
+    let mut streams = Vec::new();
     let mut listeners = Vec::new();
     for (node_id, slot) in node_ids.iter().zip(slots.iter()) {
         let user = StreamUser {
@@ -347,15 +374,14 @@ fn run_pipewire(
             pw::stream::StreamFlags::AUTOCONNECT | pw::stream::StreamFlags::MAP_BUFFERS,
             &mut params,
         )?;
-        // keep the stream + listener alive for the whole mainloop
-        std::mem::forget(stream);
+        streams.push(stream);
     }
-    std::mem::forget(listeners);
 
+    // Run the loop until the quit message arrives (identical framing/behaviour
+    // to the original `run()`).
     mainloop.run();
     Ok(())
 }
-
 /// Downsample a full-resolution frame to at most ~160px wide by point sampling.
 /// Avoids copying ~8 MB per frame and makes border sampling cheap.
 fn downsample(

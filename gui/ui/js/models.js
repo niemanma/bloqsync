@@ -3,6 +3,7 @@
 import { $, escapeHtml } from "./util.js";
 import { state, saveBarModel, deleteBarModel, reloadConfigRaw } from "./state.js";
 import { renderBars } from "./screen.js";
+import { t } from "./i18n.js";
 
 export function renderModels() {
   const box = $("#model-list");
@@ -53,6 +54,20 @@ export function initModels() {
       $("#model-name").focus();
       return;
     }
+    const msg = $("#model-msg");
+    const leds = +$("#model-leds").value || 0;
+    const left = +$("#model-left").value || 0;
+    const top = +$("#model-top").value || 0;
+    const bottom = +$("#model-bottom").value || 0;
+    const right = +$("#model-right").value || 0;
+    if (leds <= 0 || left + top + bottom + right !== leds) {
+      if (msg) {
+        msg.textContent = t("models.sumError", { sum: left + top + bottom + right, leds });
+        msg.className = "anim-msg err";
+      }
+      return;
+    }
+    if (msg) { msg.textContent = ""; msg.className = "anim-msg"; }
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const model = {
       id: `user-${slug || "model"}-${Date.now().toString(36)}`,
@@ -62,11 +77,11 @@ export function initModels() {
         product_id: ($("#model-product")?.value || "fe07").trim(),
         usage_page: ($("#model-usage")?.value || "ff00").trim(),
       },
-      leds: +$("#model-leds").value || 0,
-      left: +$("#model-left").value || 0,
-      top: +$("#model-top").value || 0,
-      bottom: +$("#model-bottom").value || 0,
-      right: +$("#model-right").value || 0,
+      leds,
+      left,
+      top,
+      bottom,
+      right,
       protocol: {
         report_size: +($("#model-report")?.value || 64),
         max_sections_per_frame: +($("#model-sections")?.value || 11),
@@ -74,7 +89,12 @@ export function initModels() {
         inter_frame_gap_ms: +($("#model-gap")?.value || 3),
       },
     };
-    await saveBarModel(model);
+    try {
+      await saveBarModel(model);
+    } catch (error) {
+      if (msg) { msg.textContent = String(error); msg.className = "anim-msg err"; }
+      return;
+    }
     await reloadConfigRaw();
     $("#model-name").value = "";
     closeForm();

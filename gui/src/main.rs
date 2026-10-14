@@ -35,7 +35,6 @@ fn main() {
             commands::save_config,
             commands::autostart_enabled,
             commands::set_autostart,
-            commands::autostart_run,
             commands::list_presets,
             commands::save_preset,
             commands::delete_preset,
@@ -57,6 +56,11 @@ fn main() {
             runtime::spawn_watchdog(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running bloqsync");
+        .build(tauri::generate_context!())
+        .expect("error while building bloqsync")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                runtime::request_shutdown();
+            }
+        });
 }

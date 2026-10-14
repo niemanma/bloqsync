@@ -5,6 +5,8 @@
 //! `DVI-I-1:1920x1080+0+0|DVI-I-2:1920x1080+1920+0`.
 
 use std::process::Command;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct Output {
@@ -15,9 +17,25 @@ pub struct Output {
     pub y: i32,
 }
 
+/// Cache the signature briefly so the watchdog (every 2 s) does not fork
+/// `xrandr` on every tick, while a real setup change is still noticed quickly.
+static SIG_CACHE: Mutex<Option<(Instant, String)>> = Mutex::new(None);
+const SIG_TTL: Duration = Duration::from_secs(3);
+
 /// Stable signature of the current monitor setup (empty if unavailable).
 pub fn signature() -> String {
-    signature_of(&outputs())
+    if let Ok(guard) = SIG_CACHE.lock() {
+        if let Some((at, sig)) = guard.as_ref() {
+            if at.elapsed() < SIG_TTL {
+                return sig.clone();
+            }
+        }
+    }
+    let sig = signature_of(&outputs());
+    if let Ok(mut guard) = SIG_CACHE.lock() {
+        *guard = Some((Instant::now(), sig.clone()));
+    }
+    sig
 }
 
 fn signature_of(outs: &[Output]) -> String {

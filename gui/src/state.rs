@@ -5,7 +5,7 @@ use bloqsync::audio::AudioHandle;
 use bloqsync::capture::Capture;
 use bloqsync::device::Device;
 use bloqsync::engine::SyncHandle;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 /// Live LED colours per bar (key = uuid/id) so the UI can mirror the strips.
@@ -66,6 +66,8 @@ pub(crate) struct AppState {
     pub(crate) ident_cache: Mutex<HashMap<String, Ident>>,
     /// True while the user shows a static colour / cinema (screen sync paused).
     pub(crate) sync_paused: Mutex<bool>,
+    /// Bars the user explicitly stopped, so the watchdog will not restart them.
+    pub(crate) stopped_bars: Mutex<HashSet<String>>,
     pub(crate) cinema: Mutex<Option<CinemaRuntime>>,
     pub(crate) animation: Mutex<Option<AnimationRuntime>>,
     pub(crate) identify: Mutex<Option<IdentifyRuntime>>,

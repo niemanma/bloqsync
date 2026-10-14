@@ -36,21 +36,6 @@ impl Default for FilterKind {
     }
 }
 
-impl FilterKind {
-    pub fn label(self) -> &'static str {
-        match self {
-            FilterKind::None => "keine",
-            FilterKind::Deadband => "Deadband (Hysterese)",
-            FilterKind::Quantize => "Quantisieren",
-            FilterKind::QuantizeSmooth => "Quantisieren + weich",
-            FilterKind::Smooth => "Weich (Hysterese+Ramp)",
-            FilterKind::Median3 => "Median 3",
-            FilterKind::Median5 => "Median 5",
-            FilterKind::Mean4 => "Mittelwert 4",
-            FilterKind::Test => "Test (Negativ)",
-        }
-    }
-}
 
 /// Holds the temporal state for stateful filters.
 #[derive(Default)]

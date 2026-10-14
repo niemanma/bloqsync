@@ -222,10 +222,10 @@ fn main() -> Result<()> {
         Cmd::CaptureTest { seconds } => {
             use bloqsync::sampling::{sample_border, Layout};
             use std::sync::atomic::Ordering;
-            println!("ScreenCast anfordern – bitte den Monitor im Dialog auswählen …");
+            println!("Requesting ScreenCast – please select a monitor in the dialog …");
             let cap = bloqsync::capture::start(false, None)?;
             println!(
-                "Capture läuft: {} Stream(s), nodes={:?}",
+                "Capture running: {} stream(s), nodes={:?}",
                 cap.slots.len(),
                 cap.streams.iter().map(|s| s.node_id).collect::<Vec<_>>()
             );
@@ -254,7 +254,7 @@ fn main() -> Result<()> {
             }
             let dt = start.elapsed().as_secs_f64();
             println!(
-                "~{:.1} FPS über {} Stream(s)",
+                "~{:.1} FPS over {} stream(s)",
                 cap.counter.load(Ordering::Relaxed) as f64 / dt,
                 cap.slots.len()
             );
@@ -268,7 +268,7 @@ fn main() -> Result<()> {
             use bloqsync::engine::{spawn, SyncConfig};
             use std::sync::atomic::Ordering;
             let device = Arc::new(pick(&cli.device)?);
-            println!("ScreenCast anfordern – bitte Monitor auswählen …");
+            println!("Requesting ScreenCast – please select a monitor …");
             let cap = bloqsync::capture::start(false, None)?;
             let slot = cap
                 .slots
@@ -282,7 +282,7 @@ fn main() -> Result<()> {
                 ..Default::default()
             };
             let sync = spawn(device.clone(), slot, cfg, std::sync::Arc::new(std::sync::Mutex::new(Vec::new())))?;
-            println!("Sync läuft ({}s, {} fps, smooth={})", seconds, fps, smooth);
+            println!("Sync running ({}s, {} fps, smooth={})", seconds, fps, smooth);
             let start = Instant::now();
             while start.elapsed() < Duration::from_secs(seconds) {
                 std::thread::sleep(Duration::from_secs(1));
@@ -302,14 +302,14 @@ fn main() -> Result<()> {
             let n = d.led_count;
             let colors = three_zones(n);
             println!(
-                "KALIBRIERUNG: LED-Software 1-{} = ROT, {}-{} = GRÜN, {}-{} = BLAU.",
+                "CALIBRATION: software LED 1-{} = RED, {}-{} = GREEN, {}-{} = BLUE.",
                 n / 3,
                 n / 3 + 1,
                 2 * n / 3,
                 2 * n / 3 + 1,
                 n
             );
-            println!("Bitte schauen: liegt ROT auf der linken oder rechten Seite?");
+            println!("Please check: is RED on the left or the right side?");
             let period = Duration::from_millis(33);
             let start = Instant::now();
             while start.elapsed() < Duration::from_secs(seconds) {
@@ -325,9 +325,13 @@ fn main() -> Result<()> {
         Cmd::Freeze { seconds, fps } => {
             use bloqsync::sampling::{sample_border, Layout};
             let device = Arc::new(pick(&cli.device)?);
-            println!("ScreenCast anfordern – bitte Monitor auswählen …");
+            println!("Requesting ScreenCast – please select a monitor …");
             let cap = bloqsync::capture::start(false, None)?;
-            let slot = cap.slots.first().cloned().unwrap();
+            let slot = cap
+                .slots
+                .first()
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("no capture stream"))?;
             let frame = loop {
                 if let Some(f) = slot.frame.lock().unwrap().clone() {
                     break f;

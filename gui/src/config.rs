@@ -5,7 +5,6 @@
 
 use crate::bar_models::BarModel;
 use bloqsync::anim::Animation;
-use bloqsync::sampling::Layout;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -54,10 +53,6 @@ pub(crate) struct Preset {
     pub(crate) fps: u32,
     pub(crate) smooth: f32,
     pub(crate) brightness: u8,
-    pub(crate) left: usize,
-    pub(crate) top: usize,
-    pub(crate) right: usize,
-    pub(crate) bottom: usize,
     pub(crate) filter: String,
     pub(crate) filter_strength: u8,
     pub(crate) max_frames: u32,
@@ -69,6 +64,7 @@ pub(crate) struct Preset {
     pub(crate) cinema_smooth: f32,
     pub(crate) cinema_contrast: f32,
     pub(crate) cinema_pulse: f32,
+    pub(crate) cinema_stereo: f32,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -76,10 +72,6 @@ pub(crate) struct Config {
     pub(crate) bars: Vec<BarConfig>,
     pub(crate) fps: u32,
     pub(crate) smooth: f32,
-    pub(crate) left: usize,
-    pub(crate) top: usize,
-    pub(crate) right: usize,
-    pub(crate) bottom: usize,
     pub(crate) brightness: u8,
     #[serde(default = "default_filter")]
     pub(crate) filter: String,
@@ -127,6 +119,12 @@ pub(crate) struct Config {
     pub(crate) cinema_contrast: f32,
     #[serde(default)]
     pub(crate) cinema_pulse: f32,
+    #[serde(default = "default_cin_stereo")]
+    pub(crate) cinema_stereo: f32,
+}
+
+fn default_cin_stereo() -> f32 {
+    0.0
 }
 
 fn default_custom_color() -> String {
@@ -148,7 +146,7 @@ fn default_cin_smooth() -> f32 {
     0.6
 }
 fn default_cin_contrast() -> f32 {
-    1.0
+    0.5
 }
 
 fn default_filter() -> String {
@@ -167,10 +165,6 @@ impl Default for Config {
             bars: Vec::new(),
             fps: 24,
             smooth: 0.22,
-            left: 18,
-            top: 18,
-            right: 18,
-            bottom: 0,
             brightness: 200,
             filter: default_filter(),
             filter_strength: 8,
@@ -192,25 +186,33 @@ impl Default for Config {
             cinema_smooth: 0.6,
             cinema_contrast: 1.0,
             cinema_pulse: 0.0,
+            cinema_stereo: 0.0,
         }
     }
 }
 
 impl Config {
+    /// Fill in a default `model_id` for bars carried over from versions that
+    /// predate bar models, so the frontend and backend agree on the same model.
+    fn migrate(&mut self) {
+        if self.bars.is_empty() {
+            return;
+        }
+        let default_id = crate::bar_models::builtin().first().map(|m| m.id.clone());
+        if let Some(id) = default_id {
+            for b in &mut self.bars {
+                if b.model_id.is_none() {
+                    b.model_id = Some(id.clone());
+                }
+            }
+        }
+    }
+
     pub(crate) fn persist_uuids(&mut self, cache: &HashMap<String, Ident>) {
         for (id, ident) in cache {
             if !ident.uuid.is_empty() {
                 self.bar_uuids.insert(id.clone(), ident.clone());
             }
-        }
-    }
-
-    pub(crate) fn layout(&self) -> Layout {
-        Layout {
-            left: self.left,
-            top: self.top,
-            right: self.right,
-            bottom: self.bottom,
         }
     }
 
@@ -362,15 +364,28 @@ impl Config {
 }
 
 fn config_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    PathBuf::from(home).join(".config/bloqsync/config.json")
+    if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !dir.is_empty() {
+            return PathBuf::from(dir).join("bloqsync/config.json");
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home).join(".config/bloqsync/config.json");
+    }
+    // Last resort: a per-process directory under the system temp dir, never a
+    // shared `/tmp/.config` (which would be world-writable).
+    std::env::temp_dir()
+        .join(format!("bloqsync-{}", std::process::id()))
+        .join("config.json")
 }
 
 fn read_config_at(path: &Path) -> Config {
-    std::fs::read_to_string(path)
+    let mut cfg = std::fs::read_to_string(path)
         .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .and_then(|s| serde_json::from_str::<Config>(&s).ok())
+        .unwrap_or_default();
+    cfg.migrate();
+    cfg
 }
 
 /// Write via a temp file + rename so a concurrent reader never sees a
@@ -413,14 +428,6 @@ mod tests {
 
     fn bar(path: &str, stream: usize, reverse: bool) -> BarConfig {
         BarConfig { bar_path: path.into(), stream_index: stream, reverse, model_id: None }
-    }
-
-    #[test]
-    fn layout_reflects_config_fields() {
-        let mut cfg = Config::default();
-        (cfg.left, cfg.top, cfg.right, cfg.bottom) = (1, 2, 3, 4);
-        let l = cfg.layout();
-        assert_eq!((l.left, l.top, l.right, l.bottom), (1, 2, 3, 4));
     }
 
     #[test]
@@ -499,7 +506,7 @@ mod tests {
         assert!(!cfg.autostart_sync);
         assert!(cfg.profiles.is_empty());
         assert!(cfg.bar_uuids.is_empty());
-        assert_eq!(cfg.cinema_contrast, 1.0);
+        assert_eq!(cfg.cinema_contrast, 0.5);
         assert_eq!(cfg.cinema_pulse, 0.0);
     }
 

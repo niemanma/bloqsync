@@ -2,7 +2,7 @@
 
 import { invoke } from "./api.js";
 import { $, debounce, hexToRgb, rgbToHex } from "./util.js";
-import { saveConfig, setMode } from "./state.js";
+import { saveConfig } from "./state.js";
 import { recolorSelected } from "./anims.js";
 
 export function initColor() {
@@ -37,9 +37,4 @@ export function initColor() {
     custom.addEventListener("input", apply);
     custom.addEventListener("change", () => saveConfig());
   }
-
-  $("#resume-sync")?.addEventListener("click", () => {
-    invoke("resume_sync").catch(() => {});
-    setMode("screen");
-  });
 }

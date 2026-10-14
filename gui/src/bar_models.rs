@@ -128,7 +128,12 @@ impl Default for BarModel {
 
 impl BarModel {
     pub(crate) fn valid(&self) -> bool {
-        !self.id.trim().is_empty() && !self.name.trim().is_empty() && self.leds > 0
+        !self.id.trim().is_empty()
+            && !self.name.trim().is_empty()
+            && self.leds > 0
+            // The edge distribution must exactly cover the LED count, otherwise
+            // part of the strip stays dark (and the sampler is misaligned).
+            && self.left + self.top + self.bottom + self.right == self.leds
     }
 }
 
@@ -142,10 +147,13 @@ pub(crate) fn builtin() -> Vec<BarModel> {
         .collect()
 }
 
-/// Identification rules derived from the built-in models, used by the core to
-/// recognise bars on the USB bus and to speak their protocol.
+/// Identification rules derived from the built-in **and** user-defined models,
+/// used by the core to recognise bars on the USB bus and to speak their
+/// protocol. Called at start-up and again whenever a model is added/removed.
 pub(crate) fn device_match_rules() -> Vec<bloqsync::device::DeviceMatch> {
-    builtin()
+    let mut models = builtin();
+    models.extend(crate::config::read_config().bar_models);
+    models
         .into_iter()
         .filter_map(|m| {
             let def = bloqsync::protocol::ProtocolSpec::default();

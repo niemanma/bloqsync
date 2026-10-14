@@ -172,7 +172,10 @@ fn within(a: Rgb, b: Rgb, tol: u8) -> bool {
 /// `tol` per channel. Fewer sections => fewer frames per update => less
 /// tearing and a more atomic update. `tol = 0` keeps exact colours.
 pub fn collapse_tol(colors: &[Rgb], led_count: usize, tol: u8, spec: &ProtocolSpec) -> Vec<Section> {
-    let n = colors.len().min(spec.max_leds);
+    // Never exceed the wire's addressable range: the start/end indices are u8,
+    // so anything above MAX_LEDS (254) would wrap and corrupt the framing.
+    let cap = spec.max_leds.min(MAX_LEDS);
+    let n = colors.len().min(cap);
     let mut out = Vec::new();
     let mut i = 0;
     while i < n {
@@ -189,7 +192,8 @@ pub fn collapse_tol(colors: &[Rgb], led_count: usize, tol: u8, spec: &ProtocolSp
         i = j;
     }
     // Blank any trailing LEDs we did not provide a colour for.
-    if n < led_count && led_count <= spec.max_leds {
+    let led_count = led_count.min(cap);
+    if n < led_count {
         out.push(Section {
             start: (n + 1) as u8,
             end: led_count as u8,

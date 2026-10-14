@@ -6,7 +6,7 @@ import {
   state, loadConfig, loadDevices, loadPresets, loadBarModels, loadAnimations,
   setExpert, setMode, restoreActivePreset,
 } from "./js/state.js";
-import { initScreen, renderBars, renderCaptureState } from "./js/screen.js";
+import { initScreen, renderBars, renderCaptureState, setRunning } from "./js/screen.js";
 import { initCinema } from "./js/cinema.js";
 import { initColor } from "./js/color.js";
 import { initProfiles, renderPresets, renderProfileStatus } from "./js/profiles.js";
@@ -28,6 +28,7 @@ function bindOutputs() {
   bindSlider("cin-smooth", "cin-smooth-out", (v) => (v / 100).toFixed(2));
   bindSlider("cin-contrast", "cin-contrast-out", (v) => (v / 100).toFixed(2));
   bindSlider("cin-pulse", "cin-pulse-out", (v) => (v / 100).toFixed(2));
+  bindSlider("cin-stereo", "cin-stereo-out", (v) => (v / 100).toFixed(2));
 }
 
 function renderStatus(st) {
@@ -79,8 +80,10 @@ async function statusTick() {
     const st = await invoke("status");
     renderStatus(st);
     const running = st.bars.filter((b) => b.running).length;
-    const sw = $("#sync-enabled");
-    if (sw) sw.checked = !st.paused && !st.cinema && !st.animation && running > 0;
+    // Keep each bar row's Start/Stop buttons in sync with the backend — this
+    // covers starts/stops triggered by other modes, autostart or the watchdog.
+    const runMap = new Map(st.bars.map((b) => [b.bar, b.running]));
+    $$(".bar").forEach((row) => setRunning(row, !!runMap.get(row._key)));
     renderProfileStatus();
     const captures = await invoke("capture_info").catch(() => null);
     if (captures && JSON.stringify(captures) !== JSON.stringify(state.streams)) {
@@ -100,7 +103,7 @@ async function boot() {
   initLive();
   initParticles();
   initTooltips();
-  $("#sync-start")?.addEventListener("click", () => invoke("resume_sync").catch(() => {}));
+  $("#sync-start")?.addEventListener("click", () => $("#start-all")?.click());
   $("#stop-everything")?.addEventListener("click", () => invoke("stop_everything").catch(() => {}));
   initCinema();
   initColor();

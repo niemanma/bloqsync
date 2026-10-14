@@ -62,72 +62,66 @@ fn avg(frame: &Frame, x0: usize, y0: usize, w: usize, h: usize) -> Rgb {
 pub fn sample_border(frame: &Frame, layout: &Layout) -> Vec<Rgb> {
     let w = frame.width;
     let h = frame.height;
+    let mut out = Vec::with_capacity(layout.total());
     if w == 0 || h == 0 {
-        return vec![[0, 0, 0]; layout.total()];
+        out.resize(layout.total(), [0, 0, 0]);
+        return out;
     }
 
     // Sampling depth (thickness) along the edge, as a fraction of the screen.
     let depth_x = (w / 10).max(1);
     let depth_y = (h / 10).max(1);
 
-    let mut out = Vec::with_capacity(layout.total());
-    out.extend(sample_left(frame, layout.left, depth_x));
-    out.extend(sample_top(frame, layout.top, depth_y));
-    out.extend(sample_right(frame, layout.right, depth_x));
-    out.extend(sample_bottom(frame, layout.bottom, depth_y));
+    // Write straight into `out` (no per-edge temporary allocations).
+    sample_left(frame, layout.left, depth_x, &mut out);
+    sample_top(frame, layout.top, depth_y, &mut out);
+    sample_right(frame, layout.right, depth_x, &mut out);
+    sample_bottom(frame, layout.bottom, depth_y, &mut out);
     out
 }
 
 /// Left edge, bottom -> top.
-fn sample_left(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+fn sample_left(frame: &Frame, count: usize, depth: usize, out: &mut Vec<Rgb>) {
     let h = frame.height;
-    (0..count)
-        .map(|i| {
-            let band_h = (h / count.max(1)).max(1);
-            let y = h.saturating_sub((i + 1) * band_h);
-            let hh = band_h.min(h - y);
-            avg(frame, 0, y, depth, hh)
-        })
-        .collect()
+    for i in 0..count {
+        let band_h = (h / count.max(1)).max(1);
+        let y = h.saturating_sub((i + 1) * band_h);
+        let hh = band_h.min(h - y);
+        out.push(avg(frame, 0, y, depth, hh));
+    }
 }
 
 /// Top edge, left -> right.
-fn sample_top(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+fn sample_top(frame: &Frame, count: usize, depth: usize, out: &mut Vec<Rgb>) {
     let w = frame.width;
-    (0..count)
-        .map(|i| {
-            let band_w = (w / count.max(1)).max(1);
-            let x = i * band_w;
-            let ww = band_w.min(w - x);
-            avg(frame, x, 0, ww, depth)
-        })
-        .collect()
+    for i in 0..count {
+        let band_w = (w / count.max(1)).max(1);
+        let x = i * band_w;
+        let ww = band_w.min(w - x);
+        out.push(avg(frame, x, 0, ww, depth));
+    }
 }
 
 /// Right edge, top -> bottom.
-fn sample_right(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+fn sample_right(frame: &Frame, count: usize, depth: usize, out: &mut Vec<Rgb>) {
     let (w, h) = (frame.width, frame.height);
-    (0..count)
-        .map(|i| {
-            let band_h = (h / count.max(1)).max(1);
-            let y = i * band_h;
-            let hh = band_h.min(h - y);
-            avg(frame, w.saturating_sub(depth), y, depth, hh)
-        })
-        .collect()
+    for i in 0..count {
+        let band_h = (h / count.max(1)).max(1);
+        let y = i * band_h;
+        let hh = band_h.min(h - y);
+        out.push(avg(frame, w.saturating_sub(depth), y, depth, hh));
+    }
 }
 
 /// Bottom edge, right -> left.
-fn sample_bottom(frame: &Frame, count: usize, depth: usize) -> Vec<Rgb> {
+fn sample_bottom(frame: &Frame, count: usize, depth: usize, out: &mut Vec<Rgb>) {
     let (w, h) = (frame.width, frame.height);
-    (0..count)
-        .map(|i| {
-            let band_w = (w / count.max(1)).max(1);
-            let x = w.saturating_sub((i + 1) * band_w);
-            let ww = band_w.min(w - x);
-            avg(frame, x, h.saturating_sub(depth), ww, depth)
-        })
-        .collect()
+    for i in 0..count {
+        let band_w = (w / count.max(1)).max(1);
+        let x = w.saturating_sub((i + 1) * band_w);
+        let ww = band_w.min(w - x);
+        out.push(avg(frame, x, h.saturating_sub(depth), ww, depth));
+    }
 }
 
 /// Exponential smoothing towards a new frame (avoids flicker).

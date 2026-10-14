@@ -505,7 +505,6 @@ export function initAnimations() {
     const anim = animationById(selectedId) || state.animations[0];
     if (anim) playAnimation(anim);
   });
-  $("#anim-stop")?.addEventListener("click", () => invoke("animation_stop").catch(() => {}));
   $("#anim-save")?.addEventListener("click", () => saveFromForm());
   $("#anim-name")?.addEventListener("change", () => {
     const v = $("#anim-name").value;

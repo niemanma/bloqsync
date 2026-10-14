@@ -184,14 +184,11 @@ impl Animator {
                     Movement::Stationary => field(a, ph),
                     Movement::RotateRight => field(a, (x - ph).rem_euclid(1.0)),
                     Movement::RotateLeft => field(a, (x + ph).rem_euclid(1.0)),
-                    Movement::MarchRight => {
-                        let p = x - ph;
-                        if (0.0..1.0).contains(&p) { field(a, p) } else { [0, 0, 0] }
-                    }
-                    Movement::MarchLeft => {
-                        let p = x + ph;
-                        if (0.0..1.0).contains(&p) { field(a, p) } else { [0, 0, 0] }
-                    }
+                    // March scrolls the pattern across the strip with wrap-around,
+                    // so a travelling band enters one end and exits the other
+                    // instead of being clipped to black.
+                    Movement::MarchRight => field(a, (x - ph).rem_euclid(1.0)),
+                    Movement::MarchLeft => field(a, (x + ph).rem_euclid(1.0)),
                 }
             })
             .collect()
@@ -421,19 +418,29 @@ mod tests {
     }
 
     #[test]
-    fn march_has_a_dark_gap() {
-        let a = anim("march_right", vec![pt(0.0, 1.0, 1.0)]);
+    fn march_scrolls_without_clipping() {
+        // A scanner-like pattern (dark, bright beam, dark) must scroll smoothly
+        // and must never black out the whole strip. The previous implementation
+        // clipped the pattern to black and reset it abruptly.
+        let a = anim(
+            "march_right",
+            vec![pt(0.0, 0.0, 40.0), pt(0.5, 1.0, 20.0), pt(0.0, 0.0, 40.0)],
+        );
         let mut runner = Animator::new();
-        // Advance until the pattern has (partly) left the strip.
-        let mut seen_gap = false;
-        for _ in 0..30 {
-            let cols = runner.render(0.05, 20, &a);
-            if cols.iter().any(|c| *c == [0, 0, 0]) {
-                seen_gap = true;
-                break;
+        let mut prev = runner.render(0.0, 24, &a);
+        let mut moved = false;
+        for _ in 0..20 {
+            let cols = runner.render(0.05, 24, &a);
+            assert!(
+                cols.iter().any(|c| *c != [0, 0, 0]),
+                "the bright beam must stay visible (no clipping)"
+            );
+            if cols != prev {
+                moved = true;
             }
+            prev = cols;
         }
-        assert!(seen_gap);
+        assert!(moved, "the pattern must march over time");
     }
 
     #[test]

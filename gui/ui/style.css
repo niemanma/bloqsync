@@ -501,12 +501,6 @@ body:not(.expert) .expert-only { display: none !important; }
 }
 .acc-head:hover { background: var(--surface-3); }
 .acc-name { flex: 1; }
-.acc-chevron {
-  width: 9px; height: 9px; flex: none;
-  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg); opacity: .55; transition: transform .18s ease;
-}
-.accordion.is-open .acc-chevron { transform: rotate(45deg); }
 .acc-content { display: none; padding: 0 14px 14px; }
 .accordion.is-open .acc-content { display: block; }
 .accordion .acc-content > .card { margin: 0 0 12px; }
@@ -622,7 +616,6 @@ body {
 .accordion.is-open { border-color: rgba(139, 92, 246, .45); box-shadow: 0 22px 60px rgba(0, 0, 0, .55), 0 0 40px rgba(109, 40, 217, .12); }
 .acc-head { font-size: 17px; font-weight: 750; padding: 18px 20px; }
 .acc-head:hover { background: rgba(139, 92, 246, .06); }
-.acc-chevron { border-color: var(--accent); opacity: .9; }
 .acc-content { animation: bqSlide .22s ease; }
 .acc-content > .card { background: var(--surface); box-shadow: none; }
 
@@ -732,7 +725,6 @@ body {
 
 /* ── Always-open sections (no accordion) ──────────────────────────── */
 .acc-content { display: block !important; }
-.acc-chevron { display: none !important; }
 .acc-head { cursor: default; padding: 14px 16px; }
 .acc-head:hover { background: transparent; }
 .accordion.is-open { border-color: var(--border); box-shadow: var(--shadow); }
@@ -1027,3 +1019,21 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
 }
 .bq-tooltip.show { opacity: 1; }
+
+/* Transient error banner (IPC failures) */
+.bq-toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(10px);
+  z-index: 2000; max-width: 70vw;
+  background: #3a1414; color: #ffd7d7; border: 1px solid rgba(255, 90, 90, .45);
+  border-radius: 10px; padding: 10px 16px; font-size: 13px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+  opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s;
+}
+.bq-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Keyboard focus indicator (accessibility) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

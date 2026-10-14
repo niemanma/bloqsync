@@ -13,7 +13,7 @@ echo ">>> installing rust (if missing)"
 command -v cargo >/dev/null 2>&1 || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env" 2>/dev/null || true
 echo ">>> installing udev rule"
-sudo cp contrib/99-bloqsync.rules /lib/udev/rules.d/99-bloqsync.rules
+sudo cp contrib/99-bloqsync.rules /etc/udev/rules.d/99-bloqsync.rules
 sudo udevadm control --reload-rules || true
 echo ">>> building"
 cd gui

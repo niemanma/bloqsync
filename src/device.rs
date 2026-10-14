@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use std::ffi::CString;
 use std::fs;
 use std::os::unix::io::RawFd;
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
 pub const VENDOR_ID: u16 = 0x1A86; // QinHeng / WCH
 pub const PRODUCT_ID: u16 = 0xFE07; // ROBOBLOQ "LIGHT"
@@ -43,18 +43,28 @@ impl DeviceMatch {
     }
 }
 
-static MATCH_RULES: OnceLock<Vec<DeviceMatch>> = OnceLock::new();
+/// Identification rules currently in effect. Installed from the bar models
+/// (built-in + user-defined) and replaceable at runtime when a model changes.
+static MATCH_RULES: RwLock<Option<Vec<DeviceMatch>>> = RwLock::new(None);
 
-/// Install the identification rules (typically derived from the bar models).
-/// Set once at start-up; later calls are ignored.
+/// Install (or replace) the identification rules. Typically derived from the
+/// bar models; can be called again after a model is added or removed.
 pub fn set_match_rules(rules: Vec<DeviceMatch>) {
-    if !rules.is_empty() {
-        let _ = MATCH_RULES.set(rules);
+    if rules.is_empty() {
+        return;
+    }
+    if let Ok(mut guard) = MATCH_RULES.write() {
+        *guard = Some(rules);
     }
 }
 
-fn match_rules() -> &'static [DeviceMatch] {
-    MATCH_RULES.get_or_init(|| vec![DeviceMatch::default()])
+fn match_rules() -> Vec<DeviceMatch> {
+    if let Ok(guard) = MATCH_RULES.read() {
+        if let Some(rules) = guard.as_ref() {
+            return rules.clone();
+        }
+    }
+    vec![DeviceMatch::default()]
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,7 +98,8 @@ pub fn enumerate() -> Vec<DeviceInfo> {
         let desc = fs::read(format!("{base}/device/report_descriptor")).unwrap_or_default();
         // A device is ours when *any* model's identification rule matches:
         // the (vendor, product) pair and the vendor usage page.
-        let rule = match_rules().iter().find(|rule| {
+        let rules = match_rules();
+        let rule = rules.iter().find(|rule| {
             ids == Some((rule.vendor_id, rule.product_id))
                 && desc.len() >= 3
                 && desc[..3] == rule.usage_prefix()

@@ -116,10 +116,7 @@
 
       <!-- Effects -->
       <section id="panel-anim" class="accordion" data-mode="anim">
-        <button class="acc-head" type="button">
-          <span class="acc-name" data-i18n="mode.anim">Effects</span>
-          <span class="acc-chevron" aria-hidden="true"></span>
-        </button>
+        <div class="acc-head"><span class="acc-name" data-i18n="mode.anim">Effects</span></div>
         <div class="acc-content">
           <article class="card">
             <div class="card-head">
@@ -179,12 +176,16 @@
             <output id="cin-smooth-out">0.60</output>
           </label>
           <label class="field"><span data-i18n="cinema.contrast">Contrast</span>
-            <input type="range" id="cin-contrast" min="0" max="150" value="100" />
-            <output id="cin-contrast-out">1.00</output>
+            <input type="range" id="cin-contrast" min="0" max="150" value="50" />
+            <output id="cin-contrast-out">0.50</output>
           </label>
           <label class="field"><span data-i18n="cinema.pulse">Pulse</span>
             <input type="range" id="cin-pulse" min="0" max="100" value="0" />
             <output id="cin-pulse-out">0.00</output>
+          </label>
+          <label class="field"><span data-i18n="cinema.stereo">Stereo</span>
+            <input type="range" id="cin-stereo" min="0" max="100" value="0" />
+            <output id="cin-stereo-out">0.00</output>
           </label>
         </div>
       </article>
@@ -260,6 +261,7 @@
           <div class="actions">
             <button id="model-save" class="btn primary" type="button" data-i18n="models.save">Save model</button>
             <button id="model-cancel" class="btn ghost" type="button" data-i18n="models.cancel">Cancel</button>
+            <span id="model-msg" class="anim-msg"></span>
           </div>
         </div>
         <div class="actions">

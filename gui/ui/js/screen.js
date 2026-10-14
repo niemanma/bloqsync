@@ -22,7 +22,7 @@ function modelWarning(model, device) {
   return messages.join(" · ");
 }
 
-function setRunning(row, running) {
+export function setRunning(row, running) {
   row.querySelector(".bar-start").disabled = running;
   row.querySelector(".bar-stop").disabled = !running;
   const status = row.querySelector(".bar-status");
@@ -97,8 +97,8 @@ export function renderBars() {
             <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>
           </svg>
         </button>
-        <button class="btn primary bar-start" type="button">Start</button>
-        <button class="btn bar-stop" type="button" disabled>Stop</button>
+        <button class="btn primary bar-start" type="button">${t("common.start")}</button>
+        <button class="btn bar-stop" type="button" disabled>${t("common.stop")}</button>
       </div>`;
 
     const select = row.querySelector(".bar-stream");
@@ -155,17 +155,12 @@ export function renderBars() {
       start.disabled = true;
       status.textContent = t("bar.starting");
       status.classList.remove("on");
-      const model = modelById(st.modelId);
       try {
         await invoke("start_bar", {
           barPath: key,
           streamIndex: st.stream,
           reverse: reverse.checked,
           ...screenSettings(),
-          left: model.left,
-          top: model.top,
-          right: model.right,
-          bottom: model.bottom,
           modelId: st.modelId,
         });
         setRunning(row, true);
@@ -208,14 +203,6 @@ async function openCapture() {
 
 export function initScreen() {
   $("#connect-monitors")?.addEventListener("click", openCapture);
-  $("#sync-enabled")?.addEventListener("change", async (event) => {
-    if (event.target.checked) {
-      $$(".bar").forEach((row) => row._start?.());
-    } else {
-      await invoke("stop_all").catch(() => {});
-      $$(".bar").forEach((row) => setRunning(row, false));
-    }
-  });
   $("#disconnect-monitors")?.addEventListener("click", async () => {
     await invoke("close_capture").catch(() => {});
     state.streams = [];

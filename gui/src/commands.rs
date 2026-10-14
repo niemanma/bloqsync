@@ -10,7 +10,6 @@ use crate::state::{AppState, IdentifyRuntime};
 use bloqsync::anim::Animation;
 use bloqsync::capture::StreamInfo;
 use bloqsync::device::{enumerate, Device};
-use bloqsync::sampling::Layout;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{Manager, State};
@@ -50,42 +49,71 @@ pub(crate) struct DevDto {
 
 #[tauri::command]
 pub(crate) fn list_devices(state: State<AppState>) -> Vec<DevDto> {
-    let mut cache = state.ident_cache.lock().unwrap();
+    // Devices currently owned by a running mode must not be opened again:
+    // doing so would issue a `readDeviceInfo` on the USB bus while the sync
+    // engine streams to the same file (interleaved packets / timeouts).
+    let busy: std::collections::HashSet<String> = {
+        let mut s = std::collections::HashSet::new();
+        for b in state.bars.lock().unwrap().values() {
+            s.insert(b.device.info.id.clone());
+        }
+        if let Some(c) = state.cinema.lock().unwrap().as_ref() {
+            for d in &c.devices {
+                s.insert(d.info.id.clone());
+            }
+        }
+        if let Some(a) = state.animation.lock().unwrap().as_ref() {
+            for d in &a.devices {
+                s.insert(d.info.id.clone());
+            }
+        }
+        s
+    };
+    let cache = state.ident_cache.lock().unwrap();
     let mut list: Vec<DevDto> = enumerate()
         .into_iter()
-        .map(|info| match Device::open(&info) {
-            Ok(d) => {
-                cache.insert(
-                    d.info.id.clone(),
-                    Ident {
-                        uuid: d.uuid.clone(),
+        .map(|info| {
+            if !busy.contains(&info.id) {
+                if let Ok(d) = Device::open(&info) {
+                    return DevDto {
+                        path: d.info.path.clone(),
+                        id: d.info.id.clone(),
                         leds: d.led_count,
                         firmware: d.firmware.clone(),
-                    },
-                );
-                DevDto {
-                    path: d.info.path.clone(),
-                    id: d.info.id.clone(),
-                    leds: d.led_count,
-                    firmware: d.firmware.clone(),
-                    uuid: d.uuid.clone(),
+                        uuid: d.uuid.clone(),
+                    };
                 }
             }
-            Err(_) => {
-                // Device is busy (e.g. streaming) - fall back to the cache so
-                // the UI keeps the same identity (no duplicate rows).
-                let c = cache.get(&info.id).cloned().unwrap_or_default();
-                DevDto {
-                    path: info.path.clone(),
-                    id: info.id.clone(),
-                    leds: c.leds,
-                    firmware: c.firmware,
-                    uuid: c.uuid,
-                }
+            // Busy or unopenable: fall back to the cached identity so the UI
+            // keeps the same row.
+            let c = cache.get(&info.id).cloned().unwrap_or_default();
+            DevDto {
+                path: info.path.clone(),
+                id: info.id.clone(),
+                leds: c.leds,
+                firmware: c.firmware,
+                uuid: c.uuid,
             }
         })
         .collect();
     drop(cache);
+    // Refresh the identity cache in one pass (avoids holding the lock in the
+    // map closure above).
+    {
+        let mut cache = state.ident_cache.lock().unwrap();
+        for d in &list {
+            if !d.uuid.is_empty() {
+                cache.insert(
+                    d.id.clone(),
+                    Ident {
+                        uuid: d.uuid.clone(),
+                        leds: d.leds,
+                        firmware: d.firmware.clone(),
+                    },
+                );
+            }
+        }
+    }
     runtime::persist_identities(&state);
     if sim_enabled() {
         for (id, leds) in sim_device_specs() {
@@ -143,10 +171,6 @@ pub(crate) fn start_bar(
     fps: u32,
     smooth: f32,
     reverse: bool,
-    left: usize,
-    top: usize,
-    right: usize,
-    bottom: usize,
     brightness: Option<u8>,
     filter: Option<String>,
     filter_strength: Option<u8>,
@@ -160,7 +184,6 @@ pub(crate) fn start_bar(
     let settings = BarSettings {
         fps,
         smooth,
-        layout: Layout { left, top, right, bottom },
         brightness,
         filter: parse_filter(filter.as_deref()),
         filter_strength: filter_strength.unwrap_or(8),
@@ -171,6 +194,8 @@ pub(crate) fn start_bar(
 
 #[tauri::command]
 pub(crate) fn stop_bar(state: State<AppState>, bar_path: String) -> Result<(), String> {
+    // Remember the deliberate stop so the watchdog does not restart the bar.
+    state.stopped_bars.lock().unwrap().insert(bar_path.clone());
     if let Some(b) = state.bars.lock().unwrap().remove(&bar_path) {
         b.sync.stop();
         let _ = b.device.set_persistent_color([255, 200, 100]);
@@ -180,7 +205,21 @@ pub(crate) fn stop_bar(state: State<AppState>, bar_path: String) -> Result<(), S
 
 #[tauri::command]
 pub(crate) fn stop_all(state: State<AppState>) -> Result<(), String> {
+    // Collect every bar we know (running + configured) and remember the stop so
+    // the watchdog keeps them off until the user starts them again.
+    let keys: Vec<String> = {
+        let mut set: std::collections::HashSet<String> =
+            state.bars.lock().unwrap().keys().cloned().collect();
+        for b in read_config().bars {
+            set.insert(b.bar_path);
+        }
+        set.into_iter().collect()
+    };
     runtime::stop_all_inner(&state);
+    let mut stopped = state.stopped_bars.lock().unwrap();
+    for k in keys {
+        stopped.insert(k);
+    }
     Ok(())
 }
 
@@ -220,8 +259,20 @@ pub(crate) fn status(state: State<AppState>) -> StatusDto {
 
 #[tauri::command]
 pub(crate) fn set_brightness(state: State<AppState>, value: u8) -> Result<(), String> {
+    // Screen sync, Cinema and Effects each own their device handles; apply the
+    // brightness to whichever mode is currently driving a bar.
     for b in state.bars.lock().unwrap().values() {
         let _ = b.device.set_brightness(value);
+    }
+    if let Some(c) = state.cinema.lock().unwrap().as_ref() {
+        for d in &c.devices {
+            let _ = d.set_brightness(value);
+        }
+    }
+    if let Some(a) = state.animation.lock().unwrap().as_ref() {
+        for d in &a.devices {
+            let _ = d.set_brightness(value);
+        }
     }
     Ok(())
 }
@@ -310,6 +361,7 @@ pub(crate) fn cinema_start(
     floor: Option<f32>,
     smooth: Option<f32>,
     contrast: Option<f32>,
+    stereo: Option<f32>,
 ) -> Result<(), String> {
     runtime::stop_identify_inner(&state);
     runtime::cinema_start_inner(
@@ -321,6 +373,7 @@ pub(crate) fn cinema_start(
         floor.unwrap_or(0.35),
         smooth.unwrap_or(0.6),
         contrast.unwrap_or(0.5),
+        stereo.unwrap_or(0.0),
     )
 }
 
@@ -340,7 +393,8 @@ pub(crate) fn identify_bar(
     use std::sync::atomic::{AtomicBool, Ordering};
     if let Some(prev) = state.identify.lock().unwrap().take() {
         prev.running.store(false, Ordering::Relaxed);
-        let _ = prev.thread.join();
+        // Dropping the handle detaches the thread; it notices the flag and
+        // exits within ~450 ms. Joining here would block the IPC worker.
     }
     let was_running = !state.bars.lock().unwrap().is_empty();
     runtime::animation_stop_inner(&state);
@@ -373,7 +427,10 @@ pub(crate) fn identify_bar(
             std::thread::sleep(Duration::from_millis(450));
         }
         for (_, _, d) in &devices {
-            let _ = d.set_persistent_color([0, 0, 0]);
+            // When sync was running it restarts below; otherwise return the bars
+            // to the warm idle colour instead of leaving them dark.
+            let idle = if was_running { [0, 0, 0] } else { [255, 200, 100] };
+            let _ = d.set_persistent_color(idle);
         }
         let st = handle.state::<AppState>();
         // Only restore the previous sync when the blink finished on its own;
@@ -411,11 +468,6 @@ pub(crate) fn set_autostart(enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn autostart_run(state: State<AppState>) -> Result<(), String> {
-    runtime::autostart_run_inner(&state)
-}
-
-#[tauri::command]
 pub(crate) fn list_presets() -> Vec<Preset> {
     read_config().presets
 }
@@ -446,13 +498,21 @@ pub(crate) fn list_bar_models() -> Vec<BarModel> {
 
 #[tauri::command]
 pub(crate) fn save_bar_model(model: BarModel) -> Result<(), String> {
+    if !model.valid() {
+        return Err(
+            "Modell ungültig: links+oben+unten+rechts muss der LED-Anzahl entsprechen".into(),
+        );
+    }
     update_config(|cfg| cfg.upsert_bar_model(model));
+    // A new model may describe new hardware: refresh device identification.
+    bloqsync::device::set_match_rules(bar_models::device_match_rules());
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn delete_bar_model(id: String) -> Result<(), String> {
     update_config(|cfg| cfg.remove_bar_model(&id));
+    bloqsync::device::set_match_rules(bar_models::device_match_rules());
     Ok(())
 }
 

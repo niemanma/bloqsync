@@ -254,7 +254,8 @@ The default model (`gui/models/sync-24-54.json`) — 54 LEDs, 14/26/14:
   and the vendor `usage_page`. The core matches connected devices against these
   rules at start-up, so a different bar can describe its own identification.
 - **`leds` / `left` / `top` / `bottom` / `right`** — total LED count and the edge
-  distribution (`left + top + bottom + right` should equal `leds`).
+  distribution. `left + top + bottom + right` **must** equal `leds` (enforced by
+  the app and by the add-model form).
 - **`protocol`** — how the bar is spoken to: HID report size, sections per frame,
   section size, the highest addressable LED, the inter-frame pause and the
   action bytes. The core uses these values instead of hard-coded constants.

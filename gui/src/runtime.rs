@@ -22,7 +22,6 @@ use tauri::{Emitter, Manager};
 pub(crate) struct BarSettings {
     pub(crate) fps: u32,
     pub(crate) smooth: f32,
-    pub(crate) layout: Layout,
     pub(crate) brightness: Option<u8>,
     pub(crate) filter: FilterKind,
     pub(crate) filter_strength: u8,
@@ -34,12 +33,31 @@ impl BarSettings {
         BarSettings {
             fps: cfg.fps,
             smooth: cfg.smooth,
-            layout: cfg.layout(),
             brightness: Some(cfg.brightness),
             filter: parse_filter(Some(&cfg.filter)),
             filter_strength: cfg.filter_strength,
             max_frames: cfg.max_frames as usize,
         }
+    }
+}
+
+/// Resolve the LED edge distribution for a bar from its model (built-in or
+/// user-defined). Falls back to the first (default) model. The layout is a
+/// property of the bar model — never of the global config.
+pub(crate) fn resolve_layout(model_id: Option<&str>) -> Layout {
+    let mut models = crate::bar_models::builtin();
+    models.extend(read_config().bar_models);
+    let model = model_id
+        .and_then(|id| models.iter().find(|m| m.id == id))
+        .or_else(|| models.first());
+    match model {
+        Some(m) => Layout {
+            left: m.left,
+            top: m.top,
+            right: m.right,
+            bottom: m.bottom,
+        },
+        None => Layout::default(),
     }
 }
 
@@ -181,6 +199,8 @@ pub(crate) fn start_bar_inner(
     model_id: Option<String>,
     settings: &BarSettings,
 ) -> Result<(), String> {
+    // A (re)start cancels a previous deliberate stop for this bar.
+    state.stopped_bars.lock().unwrap().remove(bar_path);
     let capture = state
         .capture
         .lock()
@@ -209,7 +229,7 @@ pub(crate) fn start_bar_inner(
         filter: settings.filter,
         filter_strength: settings.filter_strength,
         max_frames: settings.max_frames,
-        layout: settings.layout,
+        layout: resolve_layout(model_id.as_deref()),
         inter_frame_gap: std::time::Duration::from_millis(
             device.info.protocol.inter_frame_gap_ms,
         ),
@@ -242,6 +262,7 @@ pub(crate) fn cinema_start_inner(
     floor: f32,
     smooth: f32,
     contrast: f32,
+    stereo: f32,
 ) -> Result<(), String> {
     cinema_stop_inner(state);
     animation_stop_inner(state);
@@ -272,6 +293,7 @@ pub(crate) fn cinema_start_inner(
         floor,
         smooth_secs: smooth,
         contrast_gain: contrast,
+        stereo_amount: stereo,
         ..Default::default()
     };
     let devices_thread = devices.clone();
@@ -467,8 +489,17 @@ pub(crate) fn autostart_run_inner(state: &AppState) -> Result<(), String> {
 }
 
 fn autostart_file() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    PathBuf::from(home).join(".config/autostart/bloqsync.desktop")
+    if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !dir.is_empty() {
+            return PathBuf::from(dir).join("autostart/bloqsync.desktop");
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home).join(".config/autostart/bloqsync.desktop");
+    }
+    std::env::temp_dir()
+        .join(format!("bloqsync-{}", std::process::id()))
+        .join("autostart/bloqsync.desktop")
 }
 
 pub(crate) fn autostart_enabled() -> bool {
@@ -481,7 +512,14 @@ pub(crate) fn set_autostart(enabled: bool) -> Result<(), String> {
         if let Some(dir) = file.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        // Prefer the installed path so an autostart saved from a dev build does
+        // not point at a transient target/debug binary.
+        let installed = PathBuf::from("/usr/bin/bloqsync-gui");
+        let exe = if installed.exists() {
+            installed
+        } else {
+            std::env::current_exe().map_err(|e| e.to_string())?
+        };
         let contents = format!(
             "[Desktop Entry]\nType=Application\nName=bloqsync\nComment=Ambient light sync\nExec={}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
             exe.display()
@@ -521,6 +559,18 @@ pub(crate) fn spawn_autostart(app: tauri::AppHandle) {
     });
 }
 
+/// Set once the app is quitting, so the background loops can exit.
+static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Ask the background threads (hotplug/watchdog) to stop.
+pub(crate) fn request_shutdown() {
+    SHUTDOWN.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn shutting_down() -> bool {
+    SHUTDOWN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Hotplug: watch for bar add/remove.
 pub(crate) fn spawn_hotplug(app: tauri::AppHandle) {
     std::thread::spawn(move || {
@@ -528,6 +578,9 @@ pub(crate) fn spawn_hotplug(app: tauri::AppHandle) {
         let mut last = ids(&enumerate());
         loop {
             std::thread::sleep(Duration::from_secs(2));
+            if shutting_down() {
+                return;
+            }
             let now = ids(&enumerate());
             if now != last {
                 last = now.clone();
@@ -542,6 +595,9 @@ pub(crate) fn spawn_hotplug(app: tauri::AppHandle) {
 pub(crate) fn spawn_watchdog(app: tauri::AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
+        if shutting_down() {
+            return;
+        }
         watchdog_tick(&app);
     });
 }
@@ -555,6 +611,10 @@ fn capture_is_stale(state: &AppState, sig: &str) -> bool {
 
 /// True if `bar_path` is configured but not currently running.
 fn bar_needs_start(state: &AppState, bar_path: &str) -> bool {
+    // Never fight a deliberate stop by the user.
+    if state.stopped_bars.lock().unwrap().contains(bar_path) {
+        return false;
+    }
     let bars = state.bars.lock().unwrap();
     match bars.get(bar_path) {
         Some(rt) => !rt.sync.is_running(),
@@ -636,7 +696,6 @@ mod tests {
     fn bar_settings_maps_config() {
         let mut cfg = Config::default();
         (cfg.fps, cfg.smooth) = (30, 0.4);
-        (cfg.left, cfg.top, cfg.right, cfg.bottom) = (1, 2, 3, 4);
         cfg.brightness = 180;
         cfg.filter = "median3".into();
         cfg.filter_strength = 12;
@@ -645,10 +704,19 @@ mod tests {
         let s = BarSettings::from_config(&cfg);
         assert_eq!(s.fps, 30);
         assert_eq!(s.smooth, 0.4);
-        assert_eq!((s.layout.left, s.layout.top, s.layout.right, s.layout.bottom), (1, 2, 3, 4));
         assert_eq!(s.brightness, Some(180));
         assert_eq!(s.filter, FilterKind::Median3);
         assert_eq!(s.filter_strength, 12);
         assert_eq!(s.max_frames, 3);
+    }
+
+    #[test]
+    fn resolve_layout_defaults_to_first_model() {
+        // Unknown/absent model ids fall back to the first built-in model.
+        let l = resolve_layout(None);
+        let m = &crate::bar_models::builtin()[0];
+        assert_eq!((l.left, l.top, l.right, l.bottom), (m.left, m.top, m.right, m.bottom));
+        let l2 = resolve_layout(Some("does-not-exist"));
+        assert_eq!((l2.left, l2.top, l2.right, l2.bottom), (m.left, m.top, m.right, m.bottom));
     }
 }

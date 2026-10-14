@@ -47,6 +47,7 @@ function ensureRows() {
 function setCount(row, n) {
   if (row.count === n) return;
   row.count = n;
+  row.last = null;
   row.el.innerHTML = "";
   row.cells = [];
   for (let i = 0; i < n; i++) {
@@ -62,12 +63,27 @@ function paint(row, cols) {
   // The engine streams in LED order; a mirrored (reverse) bar is mounted the
   // other way round, so reverse the visual to match what the user sees.
   const led = row.reverse ? cols.slice().reverse() : cols;
-  setCount(row, led.length);
-  for (let i = 0; i < led.length && i < row.cells.length; i++) {
+  const n = led.length;
+  setCount(row, n);
+  // Skip all DOM writes when nothing changed (the live tick runs ~25x/s even
+  // when the picture is static).
+  const last = row.last;
+  let changed = !last || last.length !== n;
+  if (!changed) {
+    for (let i = 0; i < n; i++) {
+      const [r, g, b] = led[i];
+      if (last[i] !== ((r << 16) | (g << 8) | b)) { changed = true; break; }
+    }
+  }
+  if (!changed) return;
+  const next = new Array(n);
+  for (let i = 0; i < n; i++) {
     const [r, g, b] = led[i];
+    next[i] = (r << 16) | (g << 8) | b;
     row.cells[i].style.backgroundColor = `rgb(${r},${g},${b})`;
     row.cells[i].style.boxShadow = `0 0 8px rgba(${r},${g},${b},.65)`;
   }
+  row.last = next;
 }
 
 export function renderLiveMode(mode) {

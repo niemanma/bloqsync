@@ -8,6 +8,13 @@ export function initParticles() {
   const ctx = canvas.getContext("2d");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const COLORS = ["139,92,246", "34,211,238", "168,85,247"];
+  // Respect the OS "reduce motion" preference: draw a single static frame and
+  // stop, instead of animating continuously.
+  if (reduce) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    return;
+  }
   let w = 0, h = 0;
   const drops = [];
 
